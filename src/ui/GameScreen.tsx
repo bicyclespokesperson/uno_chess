@@ -122,7 +122,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const [shownWhiteAtBottom, setShownWhiteAtBottom] = useState(targetWhiteAtBottom);
   const [spinning, setSpinning] = useState(false);
   useEffect(() => {
-    if (targetWhiteAtBottom === shownWhiteAtBottom) return;
+    if (targetWhiteAtBottom === shownWhiteAtBottom) return setSpinning(false);
     if (prefersReducedMotion()) return setShownWhiteAtBottom(targetWhiteAtBottom);
     setSpinning(true);
     const t = setTimeout(() => {
@@ -179,6 +179,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const isOwnMovable = (sq: Square) => moving && view.position.board[sq]?.color === view.turn && movesFrom(view, sq).length > 0;
 
   const activateSquare = (sq: Square) => {
+    if (spinning || promotion) return;
     setInstantPieceId(null);
     if (placing) {
       if (selectedPocket && dropTargets.has(sq)) void dispatch({ type: 'drop', piece: selectedPocket, to: sq });
@@ -259,9 +260,9 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (overlay || e.metaKey || e.ctrlKey || e.altKey) return;
+      if (overlay || view.drawOffer || e.metaKey || e.ctrlKey || e.altKey) return;
       if ((e.target as HTMLElement)?.closest?.('input, textarea, select')) return;
-      if (e.key === 'f' && canAct && view.phase.kind === 'draw') draw();
+      if (e.key === 'f' && canAct && !spinning && view.phase.kind === 'draw') draw();
       if (e.key === 'Escape') {
         setSelected(null);
         setPromotion(null);
