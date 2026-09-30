@@ -14,7 +14,7 @@ Normal chess, except each turn begins with the current player flipping the top c
 | --- | --- |
 | **1–9** | Make that many moves in a row, with any pieces (the same piece can move repeatedly). Numbers above the *move cap* (a setup option, default 3) count as the cap. |
 | **0** | No moves. If you're in check you get one move to escape. |
-| **Skip** | Your opponent is skipped: flip again. |
+| **Skip** | Your turn is skipped. If you're in check, you get one move to escape. |
 | **Reverse** | The board spins 180° and the players swap armies. The other player takes over the same color's turn and flips a card. |
 | **+2** | Put up to two of your army's captured pieces back on the board, using bughouse drop rules. |
 | **Wild** | Choose which card it acts as: any number up to the cap, Skip, Reverse, or +2. |

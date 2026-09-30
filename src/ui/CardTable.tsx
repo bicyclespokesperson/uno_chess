@@ -44,6 +44,7 @@ function Prompt({ view, waiting }: { view: GameView; waiting: boolean }) {
   let detail = effect ? effectDetail(effect) : '';
   if (plan.kind === 'moves' && effect?.kind === 'draw') detail = 'No captured pieces can come back, so you get one move instead.';
   if (plan.kind === 'moves' && effect?.kind === 'number' && effect.value === 0) detail = 'Zero, but you’re in check: make one move to escape.';
+  if (plan.kind === 'moves' && effect?.kind === 'skip') detail = 'Skip, but you’re in check: make one move to escape.';
   if (plan.kind === 'moves' && effect?.kind === 'number' && effect.value > plan.total) detail = `Capped from ${effect.value}. ${detail}`;
   if (plan.kind === 'drops') detail = 'Pick a piece from your pocket, then a highlighted square. Pawns can’t go on the first or last rank.';
   if (waiting) detail = plan.kind === 'drops' ? `${name} is placing pieces.` : `${name} is moving.`;

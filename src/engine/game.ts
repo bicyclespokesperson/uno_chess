@@ -54,13 +54,14 @@ export interface Result {
   reason: EndReason;
 }
 
-export type TurnEndReason = 'done' | 'check' | 'zero' | 'noMoves' | 'pocketEmpty' | 'noDropSquares' | 'early';
+export type TurnEndReason = 'done' | 'check' | 'zero' | 'skip' | 'noMoves' | 'pocketEmpty' | 'noDropSquares' | 'early';
 
 export type TurnNote =
   | 'capped'
   | 'zero'
   | 'zeroInCheck'
   | 'skip'
+  | 'skipInCheck'
   | 'reverse'
   | 'noPocket'
   | 'noDropSquares'
@@ -338,10 +339,14 @@ function resolveEffect(s: GameState, effect: Effect, events: GameEvent[]): void 
       return endTurn(s, 'zero', events);
     }
     case 'skip':
-      record.notes.push('skip');
       events.push({ type: 'skip', player: currentPlayer(s) });
-      s.phase = { kind: 'draw' };
-      return;
+      // Passing while in check would leave the king capturable, so a checked player still gets one escape move.
+      if (inCheck(s.position, s.turn)) {
+        record.notes.push('skipInCheck');
+        return startPlan(s, 'moves', 1, events);
+      }
+      record.notes.push('skip');
+      return endTurn(s, 'skip', events);
     case 'reverse':
       record.notes.push('reverse');
       s.armies = { w: s.armies.b, b: s.armies.w };

@@ -160,7 +160,7 @@ export function ConfirmModal({ title, lead, confirm, onConfirm, onClose }: { tit
 const RULE_CARDS: { card: Card; title: string; body: string }[] = [
   { card: { id: -1, kind: 'number', color: 'yellow', value: 3 }, title: 'Numbers', body: 'Make that many moves in a row, with any pieces. Numbers above the move cap count as the cap.' },
   { card: { id: -2, kind: 'number', color: 'blue', value: 0 }, title: 'Zero', body: 'No moves. If you’re in check, you get one move to escape.' },
-  { card: { id: -3, kind: 'skip', color: 'red' }, title: 'Skip', body: 'Your opponent is skipped. Flip another card.' },
+  { card: { id: -3, kind: 'skip', color: 'red' }, title: 'Skip', body: 'Your turn is skipped. If you’re in check, you get one move to escape.' },
   { card: { id: -4, kind: 'reverse', color: 'green' }, title: 'Reverse', body: 'The board turns around and you swap armies. Your opponent takes over the same color’s turn and flips a card.' },
   { card: { id: -5, kind: 'draw2', color: 'blue' }, title: '+2', body: 'Put up to two of your captured pieces back on any empty squares (bughouse drops). With nothing to return, make one move instead.' },
   { card: { id: -6, kind: 'wild' }, title: 'Wild', body: 'Choose which card it acts as: a number up to the cap, Skip, Reverse, or +2.' },

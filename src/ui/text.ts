@@ -1,6 +1,6 @@
 import type { Color, PieceType } from '../engine/chess.ts';
 import type { Effect } from '../engine/cards.ts';
-import { MAX_CARDS_PER_GAME, type EndReason, type GameEvent, type GameView, type PlayerId, type TurnNote } from '../engine/game.ts';
+import { MAX_CARDS_PER_GAME, otherPlayer, type EndReason, type GameEvent, type GameView, type PlayerId, type TurnNote } from '../engine/game.ts';
 
 export const COLOR_NAME: Record<Color, string> = { w: 'White', b: 'Black' };
 export const PIECE_NAME: Record<PieceType, string> = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
@@ -22,7 +22,7 @@ export function effectHeadline(effect: Effect, cap: number): string {
 export function effectDetail(effect: Effect): string {
   switch (effect.kind) {
     case 'number': return effect.value === 0 ? 'Pass, unless you’re in check.' : 'Move any of your pieces, in any order.';
-    case 'skip': return 'Your opponent is skipped. Flip again.';
+    case 'skip': return 'Your turn is skipped, unless you’re in check.';
     case 'reverse': return 'Swap armies. Your opponent takes over this turn.';
     case 'draw': return 'Place captured pieces back on the board.';
   }
@@ -32,7 +32,8 @@ const NOTE_TEXT: Record<TurnNote, string> = {
   capped: 'capped',
   zero: 'pass',
   zeroInCheck: 'in check: one escape move',
-  skip: 'flips again',
+  skip: 'turn skipped',
+  skipInCheck: 'in check: one escape move',
   reverse: 'armies swapped',
   noPocket: 'nothing to return: one move instead',
   noDropSquares: 'no legal drop: one move instead',
@@ -64,7 +65,6 @@ export function resultText(view: GameView): { title: string; detail: string } {
 export function eventAnnouncement(event: GameEvent, view: GameView): string | null {
   const name = (p: PlayerId) => view.players[p].name;
   switch (event.type) {
-    case 'skip': return `Skip! ${name(event.player)} flips again.`;
     case 'reverse':
       return `Reverse! ${name(event.armies.w)} now plays White, ${name(event.armies.b)} plays Black.`;
     case 'reshuffled': return 'The deck ran out, so the discard pile was reshuffled.';
@@ -74,6 +74,7 @@ export function eventAnnouncement(event: GameEvent, view: GameView): string | nu
       switch (event.reason) {
         case 'check': return `Check! That ends the turn. ${name(event.next)}, you’re up.`;
         case 'zero': return `Zero: no moves. ${name(event.next)}, you’re up.`;
+        case 'skip': return `Skip! ${name(otherPlayer(event.next))} loses the turn. ${name(event.next)}, you’re up.`;
         case 'noMoves': return `No legal moves left. ${name(event.next)}, you’re up.`;
         case 'noDropSquares': return `Nowhere left to place a piece. ${name(event.next)}, you’re up.`;
         default: return null;

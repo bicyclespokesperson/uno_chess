@@ -126,11 +126,20 @@ describe('number cards', () => {
 });
 
 describe('skip and reverse', () => {
-  it('skip lets the same player flip again', () => {
+  it('skip skips your own turn', () => {
     const { state, events } = play(rigged([special('skip'), num(1)]), draw);
-    expect(currentPlayer(state)).toBe('p1');
+    expect(currentPlayer(state)).toBe('p2');
+    expect(state.turn).toBe('b');
     expect(state.phase).toEqual({ kind: 'draw' });
     expect(events).toContainEqual({ type: 'skip', player: 'p1' });
+    expect(events).toContainEqual({ type: 'turnEnded', reason: 'skip', next: 'p2' });
+  });
+
+  it('skip while in check gives one escape move instead', () => {
+    const { state } = play(rigged([special('skip')], { fen: '4k3/8/8/8/8/8/8/r3K3 w - - 0 1' }), draw);
+    expect(state.turn).toBe('w');
+    expect(state.phase).toEqual({ kind: 'act', plan: { kind: 'moves', total: 1, remaining: 1 } });
+    expect(state.history[0].notes).toEqual(['skipInCheck']);
   });
 
   it('reverse swaps armies and hands the same colour’s turn to the other player', () => {
