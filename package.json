@@ -10,7 +10,8 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "server": "node server/main.ts",
-    "e2e:online": "node e2e/online.mjs"
+    "e2e:online": "node e2e/online.mjs",
+    "play": "node tools/play.ts"
   },
   "dependencies": {
     "@fontsource-variable/rubik": "^5.3.0",

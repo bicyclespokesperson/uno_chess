@@ -52,7 +52,19 @@ Pushing to `main` runs the tests in CI. The site and game server are hosted toge
 node e2e/drive.mjs '[{"rig":{"cards":[1,"reverse",2]}},{"key":"f"},{"drag":["e2","e4"]},{"key":"f"},{"wait":1200},{"shot":"after-reverse"}]'
 ```
 
-See [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organized and how online play would be added.
+### Playing from the terminal
+
+`tools/play.ts` holds one online seat without a browser, which is handy for letting an agent play you. It rewrites `.play/<CODE>/status.txt` (board from your side, card, legal moves) on every update and takes commands appended to `.play/<CODE>/cmd.txt`:
+
+```sh
+npm run play -- R6HTR6 --name Claude     # join (or resume) a game
+npm run play -- new --name Claude        # create one and print its invite link
+echo draw >> .play/R6HTR6/cmd.txt        # then: move Nf3 | move e7e8q | drop n f3 | wild 3 | end | resign | leave
+```
+
+The header of `tools/play.ts` lists every command. `--server ws://127.0.0.1:7879/ws` points it at a local server.
+
+See [ARCHITECTURE.md](ARCHITECTURE.md) for how the code is organized.
 
 ## Credits
 
