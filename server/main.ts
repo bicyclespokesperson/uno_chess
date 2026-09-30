@@ -6,9 +6,10 @@ import { parseArgs } from 'node:util';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ServerMessage } from '../src/net/protocol.ts';
 import { ipBucket, RoomManager, type Connection } from './rooms.ts';
+import { staticHandler } from './static.ts';
 import { FileRoomStore } from './store.ts';
 
-const DEFAULT_ORIGINS = ['https://bicyclespokesperson.github.io', 'http://127.0.0.1:5173', 'http://localhost:5173'];
+const DEFAULT_ORIGINS = ['https://unochess.jeremysigrist.com', 'http://127.0.0.1:5173', 'http://localhost:5173'];
 const MAX_MESSAGE_BYTES = 16 * 1024;
 const HEARTBEAT_MS = 25_000;
 /** Token bucket per connection: sustained messages per second, and burst size. */
@@ -26,6 +27,8 @@ export interface ServerOptions {
   origins: string[];
   log?: (msg: string) => void;
   unseatedTimeoutMs?: number;
+  /** Built frontend (dist/) to serve from the same origin as the WebSocket. */
+  serveUi?: string;
 }
 
 export interface RunningServer {
@@ -47,6 +50,7 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
   const store = new FileRoomStore(opts.dataDir, { log });
   const manager = new RoomManager(store, { log });
   const origins = new Set(opts.origins);
+  const serveUi = opts.serveUi ? staticHandler(opts.serveUi) : null;
 
   const httpServer = http.createServer((req, res) => {
     if (req.method === 'GET' && req.url === '/healthz') {
@@ -54,8 +58,9 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       res.end(JSON.stringify({ ok: true, ...manager.stats() }));
       return;
     }
+    if (serveUi?.(req, res)) return;
     res.writeHead(404, { 'content-type': 'text/plain' });
-    res.end('Uno Chess game server. Play at https://bicyclespokesperson.github.io/uno_chess/\n');
+    res.end('Not found\n');
   });
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
@@ -157,6 +162,7 @@ function main(): void {
       bind: { type: 'string', default: '127.0.0.1' },
       'data-dir': { type: 'string', default: path.join(os.homedir(), '.local/share/uno-chess') },
       origin: { type: 'string', multiple: true },
+      'serve-ui': { type: 'string' },
     },
   });
   void startServer({
@@ -164,6 +170,7 @@ function main(): void {
     bind: values.bind!,
     dataDir: values['data-dir']!,
     origins: values.origin?.length ? values.origin : DEFAULT_ORIGINS,
+    serveUi: values['serve-ui'],
   }).then((server) => {
     const shutdown = (signal: string) => {
       console.log(`${new Date().toISOString()} ${signal}: saving and shutting down`);

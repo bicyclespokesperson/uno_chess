@@ -9,7 +9,8 @@ WorkingDirectory=%h/Development/uno_chess
 ExecStart=/usr/bin/mise exec -- node server/main.ts \
     --bind 127.0.0.1 \
     --port 7879 \
-    --data-dir %h/.local/share/uno-chess
+    --data-dir %h/.local/share/uno-chess \
+    --serve-ui %h/Development/uno_chess/dist
 Restart=on-failure
 RestartSec=5
 # SIGTERM makes the server flush every room to disk before exiting.

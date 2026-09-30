@@ -2,7 +2,7 @@
 
 Chess where every turn starts by flipping an Uno card. Two players on one screen, or online with an invite link.
 
-**Play:** https://bicyclespokesperson.github.io/uno_chess/
+**Play:** https://unochess.jeremysigrist.com
 
 Inspired by [this r/AnarchyChess post](https://old.reddit.com/r/AnarchyChess/comments/1wsbpwa/sorry_im_new_to_chess_is_this_legal/), where two people play over-the-board chess with an Uno deck and physically spin the board when a Reverse comes up.
 
@@ -44,7 +44,7 @@ npm run server     # online game server on 127.0.0.1:7879 (the dev build connect
 
 Online play: the browser talks to `server/` over a WebSocket. See [services/unochess/README.md](services/unochess/README.md) for how it's hosted, and `npm run e2e:online` for a two-browser test against the dev servers.
 
-Pushing to `main` runs the tests and deploys to GitHub Pages (`.github/workflows/deploy.yml`).
+Pushing to `main` runs the tests in CI. The site and game server are hosted together on one machine: deploy with `services/unochess/deploy.sh` (see [services/unochess/README.md](services/unochess/README.md)). The old GitHub Pages URL redirects to the new domain.
 
 `e2e/drive.mjs` drives the dev server in headless Chrome (via `playwright-core` and the system Chrome) and takes screenshots. In dev builds, `window.__uno` exposes the engine so `e2e/rig.js` can stack the deck and set up positions:
 

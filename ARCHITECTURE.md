@@ -68,7 +68,7 @@ sequenceDiagram
 - `server/store.ts` writes one JSON file per room atomically, batched, and flushed on SIGTERM.
 - `server/main.ts` does HTTP (`/healthz`), the WebSocket upgrade on `/ws` with an Origin allow-list, per-connection rate limits and heartbeats.
 - Node 24 runs the server's TypeScript directly (type stripping). That's why imports carry `.ts` extensions and tsconfig sets `erasableSyntaxOnly`.
-- The browser finds the server through `VITE_SERVER_URL`, baked in at build time. When it's empty, online play is hidden.
+- The same process serves the built site (`server/static.ts`), so the browser connects to its own origin's `/ws`. `VITE_SERVER_URL` can point a frontend hosted elsewhere at a server; the dev build uses `ws://127.0.0.1:7879/ws`.
 
 Hosting and operations are covered in [services/unochess/README.md](services/unochess/README.md).
 

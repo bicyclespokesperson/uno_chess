@@ -1,4 +1,4 @@
-name: Test and deploy to GitHub Pages
+name: Test, and publish the GitHub Pages redirect
 
 on:
   push:
@@ -27,13 +27,11 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run build
-        env:
-          # Set with `gh variable set VITE_SERVER_URL`; unset hides online play.
-          VITE_SERVER_URL: ${{ vars.VITE_SERVER_URL }}
+      # The game is served from unochess.jeremysigrist.com (see services/unochess/); Pages only redirects there.
       - if: github.ref == 'refs/heads/main'
         uses: actions/upload-pages-artifact@v3
         with:
-          path: dist
+          path: pages-redirect
 
   deploy:
     if: github.ref == 'refs/heads/main'

@@ -1,6 +1,6 @@
 # unochess: the online game server
 
-The static site stays on GitHub Pages. Online games go through a small Node WebSocket server (`server/main.ts`) running on this machine as a systemd **user** service, behind Caddy at `https://unochess.jeremysigrist.com` (proxying to `127.0.0.1:7879`). The layout follows `~/Development/afm/services/afm-web`.
+One Node process (`server/main.ts`) serves both the built site (`dist/`) and the game's WebSocket (`/ws`) from `https://unochess.jeremysigrist.com`. It runs on this machine as a systemd **user** service behind Caddy, which proxies to `127.0.0.1:7879`. Serving both from one origin means the browser needs no server URL and no cross-origin setup. The layout follows `~/Development/afm/services/afm-web`. GitHub Pages only hosts a redirect (`pages-redirect/`) so old links keep working.
 
 | Piece | Where |
 | --- | --- |
@@ -8,7 +8,7 @@ The static site stays on GitHub Pages. Online games go through a small Node WebS
 | Unit | `services/unochess/unochess.service`, symlinked into `~/.config/systemd/user/` |
 | Data | `~/.local/share/uno-chess/rooms/<CODE>.json`, one file per game (mode 0600) |
 | Caddy block | `services/unochess/Caddyfile.production`, appended to `/etc/caddy/Caddyfile` |
-| Frontend config | GitHub repo variable `VITE_SERVER_URL`, read by `.github/workflows/deploy.yml` |
+| Site | `dist/`, built from the checkout by `deploy.sh` |
 
 ## First-time setup
 
@@ -16,7 +16,7 @@ The static site stays on GitHub Pages. Online games go through a small Node WebS
 2. Install and start the service (no sudo):
 
    ```sh
-   cd ~/Development/uno_chess && npm ci
+   cd ~/Development/uno_chess && npm ci && npm run build
    ln -s ~/Development/uno_chess/services/unochess/unochess.service ~/.config/systemd/user/
    systemctl --user daemon-reload && systemctl --user enable --now unochess
    curl -s http://127.0.0.1:7879/healthz        # {"ok":true,...}
@@ -28,23 +28,17 @@ The static site stays on GitHub Pages. Online games go through a small Node WebS
    services/unochess/install_caddy_site.sh
    ```
 
-4. Turn online play on in the published site:
-
-   ```sh
-   gh variable set VITE_SERVER_URL --body 'wss://unochess.jeremysigrist.com/ws'
-   gh workflow run deploy.yml
-   ```
 
 ## Day to day
 
 - `systemctl --user status|restart unochess`, `journalctl --user -u unochess -f`
-- Deploying server changes: `git pull && npm ci && systemctl --user restart unochess`. Restarts are safe: SIGTERM flushes every room to disk, and browsers reconnect and resume on their own.
+- Deploying: `services/unochess/deploy.sh` (installs, runs the tests, builds `dist/`, restarts). Restarts are safe: SIGTERM flushes every room to disk, and browsers reconnect and resume on their own. Rebuilding `dist/` in this checkout changes what the live site serves, so build dev experiments elsewhere or redeploy afterwards.
 - Don't `kill -9` it: saves are batched every 250 ms, so a hard kill can lose the last moves.
 - Stale rooms are swept hourly: games nobody joined after 12 hours, and any game idle for 30 days. Leaving a game releases it right away: a room nobody joined is deleted, and leaving mid-game resigns.
 
 ## How it's protected
 
-- Only the GitHub Pages origin and the local Vite dev server may open a WebSocket (`--origin` flag to change, repeatable).
+- Only pages from `https://unochess.jeremysigrist.com` and the local Vite dev server may open a WebSocket (`--origin` flag to change, repeatable). The site is served with a strict Content-Security-Policy, `nosniff`, `no-referrer` and `frame-ancestors 'none'`. Hashed assets are cached for a year, and `index.html` is never cached.
 - Each player gets a random 256-bit token kept in their browser's localStorage. The server stores only its SHA-256, and compares in constant time.
 - The server is authoritative: every action runs through the engine's `applyAction`, which validates the action's shape and legality. Clients never see the deck order or RNG state.
 - Limits:

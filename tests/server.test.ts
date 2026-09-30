@@ -1,4 +1,4 @@
-import { mkdtempSync, readdirSync, rmSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -231,6 +231,30 @@ describe('game server', () => {
   it('closes sockets that never take a seat', async () => {
     const idle = await connect();
     expect(await idle.closed).toBe(4001);
+  });
+});
+
+describe('serving the frontend', () => {
+  it('serves files with caching and security headers, falls back to index.html, and refuses traversal', async () => {
+    const ui = path.join(dataDir, 'ui');
+    mkdirSync(path.join(ui, 'assets'), { recursive: true });
+    writeFileSync(path.join(ui, 'index.html'), '<title>app</title>');
+    writeFileSync(path.join(ui, 'assets', 'app-123.js'), 'console.log(1)');
+    writeFileSync(path.join(dataDir, 'secret.txt'), 'nope');
+    await server.close();
+    server = await startServer({ port: 0, bind: '127.0.0.1', dataDir, origins: [ORIGIN], log: () => {}, serveUi: ui });
+    const get = (p: string) => fetch(`http://127.0.0.1:${server.port}${p}`);
+
+    const index = await get('/');
+    expect(await index.text()).toBe('<title>app</title>');
+    expect(index.headers.get('cache-control')).toBe('no-cache');
+    expect(index.headers.get('content-security-policy')).toContain("default-src 'self'");
+    const asset = await get('/assets/app-123.js');
+    expect(asset.headers.get('content-type')).toContain('text/javascript');
+    expect(asset.headers.get('cache-control')).toContain('immutable');
+    expect(await (await get('/somewhere/else')).text()).toBe('<title>app</title>');
+    expect(await (await get('/%2e%2e/secret.txt')).text()).not.toContain('nope');
+    expect(await (await get('/healthz')).json()).toMatchObject({ ok: true });
   });
 });
 
