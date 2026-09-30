@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
-import { fileOf, rankOf, squareName, type Color, type Piece, type Position, type PromotionType, type Square } from '../engine/chess';
-import { COLOR_NAME, PIECE_NAME } from './text';
+import { fileOf, rankOf, squareName, type Color, type Piece, type Position, type PromotionType, type Square } from '../engine/chess.ts';
+import { COLOR_NAME, PIECE_NAME } from './text.ts';
 
 export const pieceSrc = (color: Color, type: string): string =>
   `${import.meta.env.BASE_URL}pieces/${color}${type.toUpperCase()}.svg`;

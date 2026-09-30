@@ -1,4 +1,6 @@
 import {
+  DROPPABLE_TYPES,
+  PROMOTION_TYPES,
   applyDrop,
   applyMove,
   dropToSan,
@@ -16,8 +18,8 @@ import {
   type Move,
   type Position,
   type Square,
-} from './chess';
-import { cardEffect, shuffle, standardDeck, type Card, type Effect } from './cards';
+} from './chess.ts';
+import { cardEffect, shuffle, standardDeck, type Card, type Effect } from './cards.ts';
 
 export type PlayerId = 'p1' | 'p2';
 export const PLAYER_IDS: PlayerId[] = ['p1', 'p2'];
@@ -206,7 +208,44 @@ export function droppableTypes(s: Viewable): DroppableType[] {
 
 const canDropAny = (s: Viewable): boolean => droppableTypes(s).length > 0;
 
+const isSquare = (v: unknown): v is Square => Number.isInteger(v) && (v as number) >= 0 && (v as number) < 64;
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null;
+
+function isEffect(v: unknown): v is Effect {
+  if (!isObject(v)) return false;
+  switch (v.kind) {
+    case 'number': return Number.isInteger(v.value);
+    case 'skip':
+    case 'reverse': return true;
+    case 'draw': return Number.isInteger(v.count);
+    default: return false;
+  }
+}
+
+/** Actions can arrive from the network, so check their shape before trusting any field. */
+export function isValidAction(a: unknown): a is Action {
+  if (!isObject(a)) return false;
+  switch (a.type) {
+    case 'draw':
+    case 'endTurn':
+    case 'resign':
+    case 'offerDraw':
+      return true;
+    case 'chooseWild': return isEffect(a.effect);
+    case 'answerDraw': return typeof a.accept === 'boolean';
+    case 'drop': return (DROPPABLE_TYPES as unknown[]).includes(a.piece) && isSquare(a.to);
+    case 'move': {
+      const m = a.move;
+      return isObject(m) && isSquare(m.from) && isSquare(m.to) && (m.promotion === undefined || (PROMOTION_TYPES as unknown[]).includes(m.promotion));
+    }
+    default: return false;
+  }
+}
+
+export const isPlayerId = (v: unknown): v is PlayerId => v === 'p1' || v === 'p2';
+
 export function applyAction(state: GameState, actor: PlayerId, action: Action): ActionOutcome {
+  if (!isPlayerId(actor) || !isValidAction(action)) throw new GameError('That request didn’t make sense.');
   if (state.phase.kind === 'over') throw new GameError('The game is over.');
   const s = structuredClone(state);
   const events: GameEvent[] = [];
@@ -219,7 +258,6 @@ export function applyAction(state: GameState, actor: PlayerId, action: Action): 
     case 'resign': resign(s, actor, events); break;
     case 'offerDraw': offerDraw(s, actor, events); break;
     case 'answerDraw': answerDraw(s, actor, action.accept, events); break;
-    default: throw new GameError(`Unknown action ${(action as { type: string }).type}`);
   }
   s.seq++;
   return { state: s, events };

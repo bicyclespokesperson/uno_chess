@@ -1,14 +1,16 @@
-import { applyAction, GameError, PLAYER_IDS, toView, type Action, type GameState, type GameView, type PlayerId } from '../engine/game';
-import type { DispatchResult, GameClient, Listener } from './client';
-import { saveGame } from './storage';
+import { applyAction, GameError, PLAYER_IDS, toView, type Action, type GameState, type GameView, type PlayerId } from '../engine/game.ts';
+import type { DispatchResult, GameClient, Listener } from './client.ts';
+import { saveGame } from './storage.ts';
 
 /** Hot-seat play: the engine runs in the browser and both players share this device. */
 export class LocalClient implements GameClient {
   readonly localPlayers: readonly PlayerId[] = PLAYER_IDS;
   private listeners = new Set<Listener>();
+  private state: GameState;
   private view: GameView;
 
-  constructor(private state: GameState) {
+  constructor(state: GameState) {
+    this.state = state;
     this.view = toView(state);
   }
 

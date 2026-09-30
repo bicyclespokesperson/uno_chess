@@ -1,6 +1,6 @@
-import { DROPPABLE_TYPES, type Color, type DroppableType } from '../engine/chess';
-import { pieceSrc } from './Board';
-import { COLOR_NAME, PIECE_NAME, plural } from './text';
+import { DROPPABLE_TYPES, type Color, type DroppableType } from '../engine/chess.ts';
+import { pieceSrc } from './Board.tsx';
+import { COLOR_NAME, PIECE_NAME, plural } from './text.ts';
 
 export interface PlayerBarProps {
   name: string;

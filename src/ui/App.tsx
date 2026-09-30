@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'preact/hooks';
-import { createGame, otherPlayer, type GameState, type PlayerId } from '../engine/game';
-import type { GameClient } from '../net/client';
-import { LocalClient } from '../net/localClient';
-import { clearGame, loadGame, loadPrefs, savePrefs, saveGame, type Prefs } from '../net/storage';
-import { GameScreen } from './GameScreen';
-import { Setup } from './Setup';
+import { createGame, otherPlayer, type GameState, type PlayerId } from '../engine/game.ts';
+import type { GameClient } from '../net/client.ts';
+import { LocalClient } from '../net/localClient.ts';
+import { clearGame, loadGame, loadPrefs, savePrefs, saveGame, type Prefs } from '../net/storage.ts';
+import { GameScreen } from './GameScreen.tsx';
+import { Setup } from './Setup.tsx';
 
 const randomSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0];
 

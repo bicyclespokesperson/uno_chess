@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { fromFen, legalMoves, parseSquare as sq, type DroppableType } from '../src/engine/chess';
-import type { Card } from '../src/engine/cards';
+import { fromFen, legalMoves, parseSquare as sq, type DroppableType } from '../src/engine/chess.ts';
+import type { Card } from '../src/engine/cards.ts';
 import {
   applyAction,
   createGame,
@@ -12,7 +12,7 @@ import {
   type Action,
   type GameState,
   type Settings,
-} from '../src/engine/game';
+} from '../src/engine/game.ts';
 
 let cardId = 1000;
 const num = (value: number): Card => ({ id: cardId++, kind: 'number', color: 'red', value });
@@ -208,6 +208,30 @@ describe('wild cards', () => {
     const { state, events } = play(s, { type: 'chooseWild', effect: { kind: 'reverse' } });
     expect(state.armies).toEqual({ w: 'p2', b: 'p1' });
     expect(events[0]).toEqual({ type: 'wildChosen', effect: { kind: 'reverse' } });
+  });
+});
+
+describe('untrusted input', () => {
+  it('rejects malformed actions without touching state', () => {
+    const s = play(rigged([special('draw2')], { pockets: { w: ['n'], b: [] } }), draw).state;
+    const bad: unknown[] = [
+      null,
+      { type: 'drop', piece: 'n', to: 'abc' },
+      { type: 'drop', piece: 'k', to: 20 },
+      { type: 'drop', piece: 'n', to: 64 },
+      { type: 'move', move: { from: 12, to: 28.5 } },
+      { type: 'move', move: { from: 12, to: 28, promotion: 'k' } },
+      { type: 'move' },
+      { type: 'chooseWild', effect: { kind: 'number' } },
+      { type: 'answerDraw', accept: 'yes' },
+      { type: 'hack' },
+    ];
+    for (const action of bad) {
+      expect(() => applyAction(s, 'p1', action as Action)).toThrow(GameError);
+    }
+    expect(() => applyAction(s, 'p3' as 'p1', draw)).toThrow(GameError);
+    expect(s.position.board.length).toBe(64);
+    expect(s.pockets.w).toEqual(['n']);
   });
 });
 

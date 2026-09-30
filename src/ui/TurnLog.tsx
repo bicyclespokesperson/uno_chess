@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'preact/hooks';
-import { cardLabel, effectLabel } from '../engine/cards';
-import type { GameView } from '../engine/game';
-import { COLOR_NAME, noteText } from './text';
+import { cardLabel, effectLabel } from '../engine/cards.ts';
+import type { GameView } from '../engine/game.ts';
+import { COLOR_NAME, noteText } from './text.ts';
 
 export function TurnLog({ view }: { view: GameView }) {
   const listRef = useRef<HTMLOListElement>(null);

@@ -1,4 +1,4 @@
-import type { GameState, PlayerId, Settings } from '../engine/game';
+import type { GameState, PlayerId, Settings } from '../engine/game.ts';
 
 const GAME_KEY = 'uno-chess:game:v1';
 const PREFS_KEY = 'uno-chess:prefs:v1';

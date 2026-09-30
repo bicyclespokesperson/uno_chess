@@ -1,9 +1,9 @@
 import type { ComponentChildren } from 'preact';
 import { useEffect, useRef } from 'preact/hooks';
-import type { Card, CardColor, Effect } from '../engine/cards';
-import { wildOptions, type GameView, type PlayerId, type Settings } from '../engine/game';
-import { UnoCard } from './UnoCard';
-import { effectHeadline, plural, resultText } from './text';
+import type { Card, CardColor, Effect } from '../engine/cards.ts';
+import { wildOptions, type GameView, type PlayerId, type Settings } from '../engine/game.ts';
+import { UnoCard } from './UnoCard.tsx';
+import { effectHeadline, plural, resultText } from './text.ts';
 
 interface ModalProps {
   title: string;

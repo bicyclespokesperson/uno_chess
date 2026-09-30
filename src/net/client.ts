@@ -1,4 +1,4 @@
-import type { Action, GameEvent, GameView, PlayerId } from '../engine/game';
+import type { Action, GameEvent, GameView, PlayerId } from '../engine/game.ts';
 
 export type DispatchResult = { ok: true } | { ok: false; error: string };
 

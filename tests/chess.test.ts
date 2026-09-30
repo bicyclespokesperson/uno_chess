@@ -13,7 +13,7 @@ import {
   parseSquare as sq,
   perft,
   toFen,
-} from '../src/engine/chess';
+} from '../src/engine/chess.ts';
 
 const pos = (fen: string) => fromFen(fen).position;
 

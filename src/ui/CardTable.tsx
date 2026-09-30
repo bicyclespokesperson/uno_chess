@@ -1,8 +1,8 @@
-import { inCheck } from '../engine/chess';
-import type { Card } from '../engine/cards';
-import { currentPlayer, currentRecord, type GameView } from '../engine/game';
-import { CardBack, UnoCard } from './UnoCard';
-import { effectDetail, effectHeadline, plural, resultText } from './text';
+import { inCheck } from '../engine/chess.ts';
+import type { Card } from '../engine/cards.ts';
+import { currentPlayer, currentRecord, type GameView } from '../engine/game.ts';
+import { CardBack, UnoCard } from './UnoCard.tsx';
+import { effectDetail, effectHeadline, plural, resultText } from './text.ts';
 
 export interface CardTableProps {
   view: GameView;

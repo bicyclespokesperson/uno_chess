@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { inCheck, kingSquare, other, type DroppableType, type Move, type PromotionType, type Square } from '../engine/chess';
+import { inCheck, kingSquare, other, type DroppableType, type Move, type PromotionType, type Square } from '../engine/chess.ts';
 import {
   colorOf,
   currentPlayer,
@@ -12,14 +12,14 @@ import {
   type GameEvent,
   type GameView,
   type PlayerId,
-} from '../engine/game';
-import type { GameClient } from '../net/client';
-import { Board, pieceSrc, type TargetKind } from './Board';
-import { CardTable } from './CardTable';
-import { ConfirmModal, DrawOfferModal, GameOverModal, ResignModal, RulesModal, WildPicker } from './Modals';
-import { PlayerBar } from './PlayerBar';
-import { eventAnnouncement } from './text';
-import { TurnLog } from './TurnLog';
+} from '../engine/game.ts';
+import type { GameClient } from '../net/client.ts';
+import { Board, pieceSrc, type TargetKind } from './Board.tsx';
+import { CardTable } from './CardTable.tsx';
+import { ConfirmModal, DrawOfferModal, GameOverModal, ResignModal, RulesModal, WildPicker } from './Modals.tsx';
+import { PlayerBar } from './PlayerBar.tsx';
+import { eventAnnouncement } from './text.ts';
+import { TurnLog } from './TurnLog.tsx';
 
 const SPIN_MS = 1100;
 const DRAG_THRESHOLD_PX = 5;

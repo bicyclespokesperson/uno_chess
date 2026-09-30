@@ -1,6 +1,6 @@
-import type { Color, PieceType } from '../engine/chess';
-import type { Effect } from '../engine/cards';
-import type { EndReason, GameEvent, GameView, PlayerId, TurnNote } from '../engine/game';
+import type { Color, PieceType } from '../engine/chess.ts';
+import type { Effect } from '../engine/cards.ts';
+import type { EndReason, GameEvent, GameView, PlayerId, TurnNote } from '../engine/game.ts';
 
 export const COLOR_NAME: Record<Color, string> = { w: 'White', b: 'Black' };
 export const PIECE_NAME: Record<PieceType, string> = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };

@@ -1,8 +1,8 @@
 import { useState } from 'preact/hooks';
-import { DEFAULT_SETTINGS, MOVE_CAP_OPTIONS, type PlayerId, type Settings } from '../engine/game';
-import type { Prefs } from '../net/storage';
-import { RulesModal } from './Modals';
-import { UnoCard } from './UnoCard';
+import { DEFAULT_SETTINGS, MOVE_CAP_OPTIONS, type PlayerId, type Settings } from '../engine/game.ts';
+import type { Prefs } from '../net/storage.ts';
+import { RulesModal } from './Modals.tsx';
+import { UnoCard } from './UnoCard.tsx';
 
 export interface SetupProps {
   initial: Prefs | null;

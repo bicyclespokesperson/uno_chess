@@ -1,4 +1,4 @@
-import type { Card, CardColor } from '../engine/cards';
+import type { Card, CardColor } from '../engine/cards.ts';
 
 const FILL: Record<CardColor, string> = {
   red: 'var(--uno-red)',
