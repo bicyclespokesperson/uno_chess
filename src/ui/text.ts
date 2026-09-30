@@ -1,6 +1,6 @@
 import type { Color, PieceType } from '../engine/chess.ts';
 import type { Effect } from '../engine/cards.ts';
-import type { EndReason, GameEvent, GameView, PlayerId, TurnNote } from '../engine/game.ts';
+import { MAX_CARDS_PER_GAME, type EndReason, type GameEvent, type GameView, type PlayerId, type TurnNote } from '../engine/game.ts';
 
 export const COLOR_NAME: Record<Color, string> = { w: 'White', b: 'Black' };
 export const PIECE_NAME: Record<PieceType, string> = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
@@ -52,6 +52,7 @@ export function resultText(view: GameView): { title: string; detail: string } {
     stalemate: 'Stalemate: no legal moves, but not in check.',
     resignation: 'by resignation',
     agreement: 'Draw agreed.',
+    turnLimit: `Draw: ${MAX_CARDS_PER_GAME} cards flipped without a winner.`,
   };
   if (!result.winner) return { title: 'Draw', detail: reasons[result.reason] };
   const name = view.players[result.winner].name;

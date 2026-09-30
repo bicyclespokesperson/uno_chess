@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
+import { isIPv6 } from 'node:net';
 import {
   applyAction,
   createGame,
@@ -6,6 +7,8 @@ import {
   isPlayerId,
   MOVE_CAP_OPTIONS,
   otherPlayer,
+  PLAYER_IDS,
+  startingWhite,
   toView,
   type GameState,
   type PlayerId,
@@ -26,8 +29,9 @@ import {
 
 export interface Seat {
   name: string;
-  /** sha256 of the player's token; the token itself only ever lives in their browser. */
+  /** sha256 of the player's token; the token itself only ever lives in their browser. Empty once they leave. */
   tokenHash: string;
+  left?: boolean;
 }
 
 export interface Room {
@@ -58,18 +62,28 @@ export interface RoomManagerOptions {
   log?: (msg: string) => void;
 }
 
-const HOUR = 60 * 60 * 1000;
+const MINUTE = 60 * 1000;
+const HOUR = 60 * MINUTE;
 const DAY = 24 * HOUR;
-const WAITING_ROOM_TTL = 2 * DAY;
+const WAITING_ROOM_TTL = 12 * HOUR;
 const IDLE_ROOM_TTL = 30 * DAY;
 
 export const hashToken = (token: string): string => createHash('sha256').update(token).digest('hex');
 
 function tokenMatches(token: unknown, hash: string): boolean {
-  if (typeof token !== 'string' || token.length > 200) return false;
+  if (typeof token !== 'string' || token.length > 200 || !hash) return false;
   const a = Buffer.from(hashToken(token), 'hex');
   const b = Buffer.from(hash, 'hex');
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/** Rate limits key on the client's /64 for IPv6, since one host can trivially rotate within it. */
+export function ipBucket(ip: string): string {
+  const bare = ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+  if (!isIPv6(bare)) return bare;
+  const [head] = bare.split('::');
+  const groups = bare.includes('::') ? head.split(':').filter(Boolean) : bare.split(':');
+  return `${[...groups, '0', '0', '0', '0'].slice(0, 4).join(':')}::/64`;
 }
 
 function cleanName(v: unknown, fallback: string): string {
@@ -85,15 +99,17 @@ function cleanSettings(v: unknown): Settings | null {
   return { moveCap: moveCap as number, allowEarlyEnd };
 }
 
-/** Counts failed attempts (bad codes, bad tokens) or creations per IP inside a sliding window. */
+/** Counts events per key inside a sliding window, plus a server-wide total. */
 export class SlidingLimiter {
   private hits = new Map<string, number[]>();
-  private readonly limit: number;
+  private readonly perKey: number;
+  private readonly total: number;
   private readonly windowMs: number;
   private readonly now: () => number;
 
-  constructor(limit: number, windowMs: number, now: () => number) {
-    this.limit = limit;
+  constructor(perKey: number, total: number, windowMs: number, now: () => number) {
+    this.perKey = perKey;
+    this.total = total;
     this.windowMs = windowMs;
     this.now = now;
   }
@@ -107,17 +123,27 @@ export class SlidingLimiter {
   }
 
   blocked(key: string): boolean {
-    return this.recent(key).length >= this.limit;
+    return this.recent(key).length >= this.perKey || this.recent('*').length >= this.total;
   }
 
   hit(key: string): void {
-    this.hits.set(key, [...this.recent(key), this.now()]);
+    for (const k of [key, '*']) this.hits.set(k, [...this.recent(k), this.now()]);
+  }
+
+  /** Forget keys with nothing inside the window, so one-off addresses don't accumulate. */
+  prune(): void {
+    for (const key of [...this.hits.keys()]) this.recent(key);
+  }
+
+  size(): number {
+    return this.hits.size;
   }
 }
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
   private seats = new Map<Connection, { code: string; seat: PlayerId }>();
+  private byRoom = new Map<string, Set<Connection>>();
   private readonly store: RoomStore;
   private readonly maxRooms: number;
   private readonly now: () => number;
@@ -127,16 +153,20 @@ export class RoomManager {
 
   constructor(store: RoomStore, opts: RoomManagerOptions = {}) {
     this.store = store;
-    this.maxRooms = opts.maxRooms ?? 5000;
+    this.maxRooms = opts.maxRooms ?? 20_000;
     this.now = opts.now ?? Date.now;
     this.log = opts.log ?? (() => {});
-    this.failures = new SlidingLimiter(20, 10 * 60 * 1000, this.now);
-    this.creations = new SlidingLimiter(30, HOUR, this.now);
+    this.failures = new SlidingLimiter(20, 500, 10 * MINUTE, this.now);
+    this.creations = new SlidingLimiter(10, 300, HOUR, this.now);
     for (const room of store.load()) this.rooms.set(room.code, room);
   }
 
   stats(): { rooms: number; connections: number } {
     return { rooms: this.rooms.size, connections: this.seats.size };
+  }
+
+  isSeated(conn: Connection): boolean {
+    return this.seats.has(conn);
   }
 
   handle(conn: Connection, raw: unknown): void {
@@ -151,28 +181,26 @@ export class RoomManager {
       case 'resume': return this.resume(conn, msg.code, msg.token);
       case 'action': return this.act(conn, msg);
       case 'rematch': return this.rematch(conn);
+      case 'leave': return this.leave(conn);
       default: return this.fail(conn, 'bad_request', 'Unrecognized message.');
     }
   }
 
   disconnect(conn: Connection): void {
-    const seat = this.seats.get(conn);
-    if (!seat) return;
-    this.seats.delete(conn);
-    const room = this.rooms.get(seat.code);
+    const room = this.detach(conn);
     if (room) this.broadcastPresence(room);
   }
 
-  /** Drops abandoned rooms. Rooms with someone connected are never removed. */
+  /** Drops abandoned rooms and forgets stale rate-limit entries. Rooms with someone connected are kept. */
   sweep(): void {
     const now = this.now();
     for (const room of this.rooms.values()) {
       const ttl = room.state ? IDLE_ROOM_TTL : WAITING_ROOM_TTL;
-      if (now - room.updatedAt < ttl || this.connectionsIn(room.code).length) continue;
-      this.rooms.delete(room.code);
-      this.store.remove(room.code);
-      this.log(`room ${room.code} expired`);
+      if (now - room.updatedAt < ttl || this.byRoom.get(room.code)?.size) continue;
+      this.deleteRoom(room, 'expired');
     }
+    this.failures.prune();
+    this.creations.prune();
   }
 
   private fail(conn: Connection, code: ErrorCode, error: string): void {
@@ -180,7 +208,7 @@ export class RoomManager {
   }
 
   private admissionBlocked(conn: Connection): boolean {
-    if (!this.failures.blocked(conn.ip)) return false;
+    if (!this.failures.blocked(ipBucket(conn.ip))) return false;
     this.fail(conn, 'rate_limited', 'Too many failed attempts. Wait a few minutes and try again.');
     return true;
   }
@@ -188,7 +216,7 @@ export class RoomManager {
   private lookup(conn: Connection, rawCode: unknown): Room | null {
     const room = typeof rawCode === 'string' ? this.rooms.get(normalizeRoomCode(rawCode)) : undefined;
     if (room) return room;
-    this.failures.hit(conn.ip);
+    this.failures.hit(ipBucket(conn.ip));
     this.fail(conn, 'not_found', 'No game with that code. Check the link, or ask for a new one.');
     return null;
   }
@@ -205,40 +233,50 @@ export class RoomManager {
     return {
       code: room.code,
       names: { p1: room.seats.p1?.name ?? null, p2: room.seats.p2?.name ?? null },
+      left: { p1: Boolean(room.seats.p1?.left), p2: Boolean(room.seats.p2?.left) },
       settings: room.settings,
       white: room.white,
       status: room.state ? 'playing' : 'waiting',
     };
   }
 
-  private connectionsIn(code: string): Connection[] {
-    return [...this.seats].filter(([, s]) => s.code === code).map(([c]) => c);
-  }
-
   private presence(room: Room): Presence {
-    const seated = new Set([...this.seats.values()].filter((s) => s.code === room.code).map((s) => s.seat));
+    const seated = new Set([...(this.byRoom.get(room.code) ?? [])].map((c) => this.seats.get(c)?.seat));
     return { p1: seated.has('p1'), p2: seated.has('p2') };
   }
 
   private broadcast(room: Room, msg: ServerMessage, except?: Connection): void {
-    for (const c of this.connectionsIn(room.code)) if (c !== except) c.send(msg);
+    for (const c of this.byRoom.get(room.code) ?? []) if (c !== except) c.send(msg);
   }
 
   private broadcastPresence(room: Room, except?: Connection): void {
     this.broadcast(room, { type: 'presence', presence: this.presence(room), room: this.roomInfo(room) }, except);
   }
 
+  /** Unseats a connection; returns the room it was in. */
+  private detach(conn: Connection): Room | null {
+    const seat = this.seats.get(conn);
+    if (!seat) return null;
+    this.seats.delete(conn);
+    const set = this.byRoom.get(seat.code);
+    set?.delete(conn);
+    if (set && !set.size) this.byRoom.delete(seat.code);
+    return this.rooms.get(seat.code) ?? null;
+  }
+
   /** Seats a connection, replacing any older tab that held the same seat. */
   private attach(conn: Connection, room: Room, seat: PlayerId, token: string): void {
-    this.seats.delete(conn);
-    for (const [other, s] of this.seats) {
-      if (s.code === room.code && s.seat === seat) {
-        this.seats.delete(other);
-        other.send({ type: 'error', code: 'replaced', error: 'This game was opened somewhere else.' });
-        other.close(4000, 'replaced');
-      }
+    const previous = this.detach(conn);
+    if (previous && previous !== room) this.broadcastPresence(previous);
+    for (const other of [...(this.byRoom.get(room.code) ?? [])]) {
+      if (this.seats.get(other)?.seat !== seat) continue;
+      this.detach(other);
+      other.send({ type: 'error', code: 'replaced', error: 'This game was opened somewhere else.' });
+      other.close(4000, 'replaced');
     }
     this.seats.set(conn, { code: room.code, seat });
+    if (!this.byRoom.has(room.code)) this.byRoom.set(room.code, new Set());
+    this.byRoom.get(room.code)!.add(conn);
     conn.send({
       type: 'welcome',
       you: seat,
@@ -255,12 +293,19 @@ export class RoomManager {
     this.store.save(room);
   }
 
+  private deleteRoom(room: Room, why: string): void {
+    this.rooms.delete(room.code);
+    this.store.remove(room.code);
+    this.log(`room ${room.code} ${why}`);
+  }
+
   private create(conn: Connection, msg: Extract<ClientMessage, { type: 'create' }>): void {
     const settings = cleanSettings(msg.settings);
     if (!settings || !['host', 'guest', 'random'].includes(msg.white)) return this.fail(conn, 'bad_request', 'Those game settings aren’t valid.');
-    if (this.creations.blocked(conn.ip)) return this.fail(conn, 'rate_limited', 'You’ve created a lot of games. Wait a bit and try again.');
+    const bucket = ipBucket(conn.ip);
+    if (this.creations.blocked(bucket)) return this.fail(conn, 'rate_limited', 'Lots of games are being created right now. Wait a bit and try again.');
     if (this.rooms.size >= this.maxRooms) return this.fail(conn, 'server_full', 'The server is full right now. Try again later.');
-    this.creations.hit(conn.ip);
+    this.creations.hit(bucket);
     const token = randomBytes(32).toString('base64url');
     const now = this.now();
     const room: Room = {
@@ -303,9 +348,12 @@ export class RoomManager {
     if (this.admissionBlocked(conn)) return;
     const room = this.lookup(conn, code);
     if (!room) return;
-    const seat = (['p1', 'p2'] as const).find((p) => room.seats[p] && tokenMatches(token, room.seats[p].tokenHash));
+    const seat = PLAYER_IDS.find((p) => {
+      const s = room.seats[p];
+      return s !== null && tokenMatches(token, s.tokenHash);
+    });
     if (!seat) {
-      this.failures.hit(conn.ip);
+      this.failures.hit(ipBucket(conn.ip));
       return this.fail(conn, 'bad_token', 'This browser isn’t a player in that game.');
     }
     this.attach(conn, room, seat, token as string);
@@ -353,11 +401,30 @@ export class RoomManager {
       return this.fail(conn, 'bad_request', 'A rematch can start once the game is over.');
     }
     const { room } = seated;
-    const previous = room.state!;
-    const startedWhite = previous.history[0]?.player ?? previous.armies.w;
-    room.state = this.newGame(room, otherPlayer(startedWhite));
+    const presence = this.presence(room);
+    if (PLAYER_IDS.some((p) => room.seats[p]?.left || !presence[p])) {
+      return this.fail(conn, 'bad_request', 'Your opponent isn’t here for a rematch.');
+    }
+    room.state = this.newGame(room, otherPlayer(startingWhite(room.state!)));
     this.touch(room);
     this.log(`room ${room.code} rematch`);
     this.broadcast(room, { type: 'state', view: toView(room.state), events: [] });
+  }
+
+  private leave(conn: Connection): void {
+    const seated = this.seatOf(conn);
+    if (!seated) return;
+    const { room, seat } = seated;
+    this.detach(conn);
+    if (!room.state) return this.deleteRoom(room, 'cancelled by host');
+    room.seats[seat] = { ...room.seats[seat]!, tokenHash: '', left: true };
+    if (room.state.phase.kind !== 'over') {
+      const { state, events } = applyAction(room.state, seat, { type: 'resign' });
+      room.state = state;
+      this.broadcast(room, { type: 'state', view: toView(state), events });
+    }
+    this.touch(room);
+    this.log(`room ${room.code}: ${seat} left`);
+    this.broadcastPresence(room);
   }
 }

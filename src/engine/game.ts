@@ -43,7 +43,10 @@ export interface Plan {
 
 export type Phase = { kind: 'draw' } | { kind: 'wild' } | { kind: 'act'; plan: Plan } | { kind: 'over' };
 
-export type EndReason = 'checkmate' | 'stalemate' | 'resignation' | 'agreement';
+export type EndReason = 'checkmate' | 'stalemate' | 'resignation' | 'agreement' | 'turnLimit';
+
+/** A game this long is a draw. Also bounds how big a saved or broadcast game can grow. */
+export const MAX_CARDS_PER_GAME = 1000;
 
 export interface Result {
   winner: PlayerId | null;
@@ -176,6 +179,8 @@ export function toView(s: GameState): GameView {
 type Viewable = Omit<GameState, 'drawPile' | 'rng' | 'seed'>;
 
 export const currentPlayer = (s: Viewable): PlayerId => s.armies[s.turn];
+/** The player who flipped first was White when the game began (Reverse cards swap armies later). */
+export const startingWhite = (s: Viewable): PlayerId => s.history[0]?.player ?? s.armies.w;
 export const colorOf = (s: Viewable, player: PlayerId): Color => (s.armies.w === player ? 'w' : 'b');
 export const topCard = (s: Viewable): Card | null => s.discard[s.discard.length - 1] ?? null;
 export const currentRecord = (s: Viewable): TurnRecord | null => s.history[s.history.length - 1] ?? null;
@@ -289,6 +294,9 @@ function takeCard(s: GameState, events: GameEvent[]): Card {
 function drawCard(s: GameState, actor: PlayerId, events: GameEvent[]): void {
   requireTurn(s, actor);
   if (s.phase.kind !== 'draw') throw new GameError('Finish this card before flipping another.');
+  if (s.history.length >= MAX_CARDS_PER_GAME) {
+    return gameOver(s, { winner: null, winningColor: null, reason: 'turnLimit' }, events);
+  }
   const card = takeCard(s, events);
   s.discard.push(card);
   s.history.push({

@@ -73,14 +73,28 @@ export function WildPicker({ settings, name, onPick, onPeek }: { settings: Setti
   );
 }
 
-export function GameOverModal({ view, online, onRematch, onNewGame, onClose }: { view: GameView; online: boolean; onRematch: () => void; onNewGame: () => void; onClose: () => void }) {
+export function GameOverModal({
+  view,
+  online,
+  rematchBlocked,
+  onRematch,
+  onNewGame,
+  onClose,
+}: {
+  view: GameView;
+  online: boolean;
+  rematchBlocked: string | null;
+  onRematch: () => void;
+  onNewGame: () => void;
+  onClose: () => void;
+}) {
   const { title, detail } = resultText(view);
   return (
     <Modal title={title} onClose={onClose}>
       <p class="modal__lead">{detail}</p>
-      <p class="modal__meta">{`${plural(view.history.length, 'card')} flipped.`}</p>
+      <p class="modal__meta">{rematchBlocked ?? `${plural(view.history.length, 'card')} flipped.`}</p>
       <div class="modal__actions">
-        <button type="button" class="btn btn--primary" onClick={onRematch}>
+        <button type="button" class="btn btn--primary" onClick={onRematch} disabled={rematchBlocked !== null}>
           Rematch
         </button>
         <button type="button" class="btn" onClick={onNewGame}>

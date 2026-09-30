@@ -6,6 +6,7 @@ import WebSocket from 'ws';
 import type { Action, GameView } from '../src/engine/game.ts';
 import type { ClientMessage, ServerMessage } from '../src/net/protocol.ts';
 import { startServer, type RunningServer } from '../server/main.ts';
+import { ipBucket, SlidingLimiter } from '../server/rooms.ts';
 
 const ORIGIN = 'http://127.0.0.1:5173';
 let dataDir: string;
@@ -13,7 +14,7 @@ let server: RunningServer;
 const sockets: WebSocket[] = [];
 
 async function boot(): Promise<void> {
-  server = await startServer({ port: 0, bind: '127.0.0.1', dataDir, origins: [ORIGIN], log: () => {} });
+  server = await startServer({ port: 0, bind: '127.0.0.1', dataDir, origins: [ORIGIN], log: () => {}, unseatedTimeoutMs: 400 });
 }
 
 beforeEach(async () => {
@@ -196,5 +197,63 @@ describe('game server', () => {
     const fresh = (await host.expect('state')).view;
     expect(fresh.armies).toEqual({ w: 'p2', b: 'p1' });
     expect(fresh.result).toBeNull();
+  });
+
+  it('cancels a room when the host leaves before anyone joins', async () => {
+    const host = await connect();
+    host.send({ type: 'create', name: 'Ana', settings, white: 'host' });
+    const { room } = await host.expect('welcome');
+    host.send({ type: 'leave' });
+    const other = await connect();
+    other.send({ type: 'peek', code: room.code });
+    expect(await other.expect('error')).toMatchObject({ code: 'not_found' });
+  });
+
+  it('resigns and retires the seat when a player leaves mid-game', async () => {
+    const { host, guest, guestWelcome, code } = await startGame();
+    guest.send({ type: 'leave' });
+    const resigned = await host.expect('state');
+    expect(resigned.view.result).toMatchObject({ winner: 'p1', reason: 'resignation' });
+    expect(await host.expect('presence')).toMatchObject({ presence: { p2: false }, room: { left: { p1: false, p2: true } } });
+    host.send({ type: 'rematch' });
+    expect(await host.expect('error')).toMatchObject({ code: 'bad_request' });
+    const back = await connect();
+    back.send({ type: 'resume', code, token: guestWelcome.token });
+    expect(await back.expect('error')).toMatchObject({ code: 'bad_token' });
+  });
+
+  it('caps concurrent connections per address', async () => {
+    const open = await Promise.all(Array.from({ length: 16 }, () => connect()));
+    expect(open).toHaveLength(16);
+    await expect(new Client().open()).rejects.toThrow(/429/);
+  });
+
+  it('closes sockets that never take a seat', async () => {
+    const idle = await connect();
+    expect(await idle.closed).toBe(4001);
+  });
+});
+
+describe('rate limiting helpers', () => {
+  it('buckets IPv6 by /64 and leaves IPv4 alone', () => {
+    expect(ipBucket('2001:db8:1:2:aaaa:bbbb:cccc:dddd')).toBe('2001:db8:1:2::/64');
+    expect(ipBucket('2001:db8:1:2::9')).toBe('2001:db8:1:2::/64');
+    expect(ipBucket('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(ipBucket('::ffff:203.0.113.9')).toBe('203.0.113.9');
+    expect(ipBucket('203.0.113.9')).toBe('203.0.113.9');
+  });
+
+  it('forgets idle keys and enforces a server-wide cap', () => {
+    let now = 0;
+    const limiter = new SlidingLimiter(2, 3, 1000, () => now);
+    limiter.hit('a');
+    limiter.hit('a');
+    expect(limiter.blocked('a')).toBe(true);
+    limiter.hit('b');
+    expect(limiter.blocked('c')).toBe(true);
+    now = 5000;
+    limiter.prune();
+    expect(limiter.size()).toBe(0);
+    expect(limiter.blocked('a')).toBe(false);
   });
 });

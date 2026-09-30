@@ -5,7 +5,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { WebSocketServer, type WebSocket } from 'ws';
 import type { ServerMessage } from '../src/net/protocol.ts';
-import { RoomManager, type Connection } from './rooms.ts';
+import { ipBucket, RoomManager, type Connection } from './rooms.ts';
 import { FileRoomStore } from './store.ts';
 
 const DEFAULT_ORIGINS = ['https://bicyclespokesperson.github.io', 'http://127.0.0.1:5173', 'http://localhost:5173'];
@@ -14,6 +14,10 @@ const HEARTBEAT_MS = 25_000;
 /** Token bucket per connection: sustained messages per second, and burst size. */
 const RATE_PER_SEC = 10;
 const RATE_BURST = 40;
+const MAX_CONNECTIONS = 2000;
+const MAX_CONNECTIONS_PER_IP = 16;
+/** Sockets that haven't taken a seat by then are closed (peeks finish well within this). */
+const UNSEATED_TIMEOUT_MS = 30_000;
 
 export interface ServerOptions {
   port: number;
@@ -21,6 +25,7 @@ export interface ServerOptions {
   dataDir: string;
   origins: string[];
   log?: (msg: string) => void;
+  unseatedTimeoutMs?: number;
 }
 
 export interface RunningServer {
@@ -55,14 +60,20 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
 
   const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_MESSAGE_BYTES });
   const alive = new WeakMap<WebSocket, boolean>();
+  const perIp = new Map<string, number>();
+
+  const refuse = (socket: import('node:stream').Duplex, status: string) => {
+    socket.write(`HTTP/1.1 ${status}\r\nConnection: close\r\n\r\n`);
+    socket.destroy();
+  };
 
   httpServer.on('upgrade', (req, socket, head) => {
     const origin = req.headers.origin;
     const pathname = new URL(req.url ?? '/', 'http://x').pathname;
-    if (pathname !== '/ws' || (origin !== undefined && !origins.has(origin))) {
-      socket.write('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
-      socket.destroy();
-      return;
+    if (pathname !== '/ws' || (origin !== undefined && !origins.has(origin))) return refuse(socket, '403 Forbidden');
+    const bucket = ipBucket(clientIp(req));
+    if (wss.clients.size >= MAX_CONNECTIONS || (perIp.get(bucket) ?? 0) >= MAX_CONNECTIONS_PER_IP) {
+      return refuse(socket, '429 Too Many Requests');
     }
     wss.handleUpgrade(req, socket, head, (ws) => wss.emit('connection', ws, req));
   });
@@ -74,6 +85,11 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       close: (code, reason) => ws.close(code, reason),
     };
     alive.set(ws, true);
+    const bucket = ipBucket(conn.ip);
+    perIp.set(bucket, (perIp.get(bucket) ?? 0) + 1);
+    const unseatedTimer = setTimeout(() => {
+      if (!manager.isSeated(conn)) ws.close(4001, 'idle');
+    }, opts.unseatedTimeoutMs ?? UNSEATED_TIMEOUT_MS);
     let tokens = RATE_BURST;
     let refilledAt = Date.now();
 
@@ -91,7 +107,13 @@ export function startServer(opts: ServerOptions): Promise<RunningServer> {
       }
       manager.handle(conn, msg);
     });
-    ws.on('close', () => manager.disconnect(conn));
+    ws.on('close', () => {
+      clearTimeout(unseatedTimer);
+      const remaining = (perIp.get(bucket) ?? 1) - 1;
+      if (remaining > 0) perIp.set(bucket, remaining);
+      else perIp.delete(bucket);
+      manager.disconnect(conn);
+    });
     ws.on('error', (err) => log(`socket error from ${conn.ip}: ${err.message}`));
   });
 

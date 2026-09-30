@@ -90,5 +90,16 @@ if (process.env.RESTART_CMD) {
   }
 }
 
+// Guest leaves for good from the (mobile) menu: host should see a resignation and no rematch.
+await guest.page.getByText('Menu', { exact: true }).click();
+await guest.page.locator('.menu-compact__list').getByRole('button', { name: 'Leave game' }).click();
+await guest.page.getByRole('button', { name: 'Leave game' }).last().click();
+await host.page.waitForSelector('.modal');
+console.log('host result:', await host.page.textContent('.modal__title'), '|', await host.page.textContent('.modal__meta'));
+console.log('host rematch disabled:', await host.page.locator('.modal .btn--primary').isDisabled());
+console.log('host sees tag:', await host.page.locator('.player__offline').textContent());
+console.log('guest back at setup:', await guest.page.locator('.hero__title').count());
+await shot(host.page, 'online-host-opponent-left');
+
 console.log(errors.length ? errors.join('\n') : 'no page errors');
 await browser.close();

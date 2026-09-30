@@ -1,7 +1,7 @@
 import { useState } from 'preact/hooks';
 import { DEFAULT_SETTINGS, MOVE_CAP_OPTIONS, type PlayerId, type Settings } from '../engine/game.ts';
 import { MAX_NAME_LENGTH } from '../net/protocol.ts';
-import type { Prefs } from '../net/storage.ts';
+import type { OnlineSession, Prefs } from '../net/storage.ts';
 import { RulesModal } from './Modals.tsx';
 import { UnoCard } from './UnoCard.tsx';
 
@@ -9,12 +9,12 @@ export interface SetupProps {
   initial: Prefs | null;
   notice: string | null;
   onlineAvailable: boolean;
-  onlineSession: { code: string } | null;
+  onlineSessions: OnlineSession[];
   savedGame: { names: string; turns: number } | null;
   onStart: (prefs: Prefs) => void;
   onCreateOnline: (prefs: Prefs) => void;
   onContinue: () => void;
-  onResumeOnline: () => void;
+  onResumeOnline: (code: string) => void;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -42,7 +42,7 @@ function Segmented<T extends string | number>({ label, options, value, onChange 
   );
 }
 
-export function Setup({ initial, notice, onlineAvailable, onlineSession, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline }: SetupProps) {
+export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline }: SetupProps) {
   const [prefs, setPrefs] = useState<Prefs>({ ...DEFAULT_PREFS, ...initial, settings: { ...DEFAULT_SETTINGS, ...initial?.settings } });
   const [showRules, setShowRules] = useState(false);
   const setName = (p: PlayerId, name: string) => setPrefs({ ...prefs, names: { ...prefs.names, [p]: name } });
@@ -78,16 +78,16 @@ export function Setup({ initial, notice, onlineAvailable, onlineSession, savedGa
 
       {notice && <p class="notice notice--error">{notice}</p>}
 
-      {onlineSession && (
-        <section class="resume">
+      {onlineSessions.map((session) => (
+        <section class="resume" key={session.code}>
           <p>
-            <strong>Online game {onlineSession.code}</strong> is still going.
+            <strong>Online game:</strong> {session.label}.
           </p>
-          <button type="button" class="btn btn--primary" onClick={onResumeOnline}>
+          <button type="button" class="btn btn--primary" onClick={() => onResumeOnline(session.code)}>
             Rejoin
           </button>
         </section>
-      )}
+      ))}
 
       {savedGame && (
         <section class="resume">

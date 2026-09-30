@@ -30,6 +30,7 @@ Fine print:
 - En passant only applies to the opponent's pawn: in a multi-move turn your own double-pushed pawn can't be taken "en passant" by your other pawns.
 - When the deck runs out, the discard pile (minus its top card) is reshuffled.
 - Optional: players may end a turn early after at least one move (setup toggle, on by default).
+- A game that reaches 1,000 flipped cards is a draw.
 
 ## Development
 

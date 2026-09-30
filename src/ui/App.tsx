@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
-import { createGame, otherPlayer, type GameState, type PlayerId } from '../engine/game.ts';
+import { createGame, otherPlayer, startingWhite, type GameState } from '../engine/game.ts';
 import { SERVER_URL } from '../net/config.ts';
 import { LocalClient } from '../net/localClient.ts';
 import { OnlineError, RemoteClient, type OnlineMeta } from '../net/remoteClient.ts';
-import { clearGame, clearOnline, loadGame, loadOnline, loadPrefs, saveGame, savePrefs, type Prefs } from '../net/storage.ts';
+import { clearGame, clearOnline, loadGame, loadOnline, loadOnlineSessions, loadPrefs, saveGame, savePrefs, type Prefs } from '../net/storage.ts';
 import { GameScreen } from './GameScreen.tsx';
 import { clearHash, JoinScreen, joinCodeFromHash, Lobby } from './Online.tsx';
 import { Setup } from './Setup.tsx';
@@ -11,20 +11,18 @@ import { Setup } from './Setup.tsx';
 type Screen =
   | { kind: 'setup'; notice?: string }
   | { kind: 'local'; client: LocalClient; id: number }
-  | { kind: 'connecting'; message: string }
+  | { kind: 'connecting'; message: string; code: string }
   | { kind: 'join'; code: string }
   | { kind: 'online'; client: RemoteClient; id: number };
 
 const randomSeed = (): number => crypto.getRandomValues(new Uint32Array(1))[0];
 
-/** The player who drew first was White when the game began. */
-const startingWhite = (s: GameState): PlayerId => s.history[0]?.player ?? s.armies.w;
-
 function initialScreen(): Screen {
-  const code = SERVER_URL ? joinCodeFromHash() : null;
-  const session = SERVER_URL ? loadOnline() : null;
-  if (code && session?.code !== code) return { kind: 'join', code };
-  if (session) return { kind: 'connecting', message: 'Rejoining your online game…' };
+  if (!SERVER_URL) return { kind: 'setup' };
+  const code = joinCodeFromHash();
+  if (code && !loadOnline(code)) return { kind: 'join', code };
+  const session = loadOnline(code ?? undefined);
+  if (session) return { kind: 'connecting', message: 'Rejoining your online game…', code: session.code };
   return { kind: 'setup' };
 }
 
@@ -34,6 +32,8 @@ function OnlineGame({ client, onLeave }: { client: RemoteClient; onLeave: () => 
   useEffect(() => {
     const offMeta = client.subscribeMeta(setMeta);
     const offView = client.subscribe(() => setHasGame(true));
+    setMeta(client.getMeta());
+    setHasGame(client.hasGame());
     return () => {
       offMeta();
       offView();
@@ -46,7 +46,7 @@ function OnlineGame({ client, onLeave }: { client: RemoteClient; onLeave: () => 
 export function App() {
   const [screen, setScreen] = useState<Screen>(initialScreen);
   const [savedLocal, setSavedLocal] = useState<GameState | null>(() => loadGame());
-  const [onlineSession, setOnlineSession] = useState(() => (SERVER_URL ? loadOnline() : null));
+  const [onlineSessions, setOnlineSessions] = useState(() => (SERVER_URL ? loadOnlineSessions() : []));
   const prefs = loadPrefs();
 
   useEffect(() => {
@@ -54,38 +54,37 @@ export function App() {
   }, [screen]);
 
   const toSetup = (notice?: string) => {
-    setOnlineSession(SERVER_URL ? loadOnline() : null);
+    setOnlineSessions(SERVER_URL ? loadOnlineSessions() : []);
     setSavedLocal(loadGame());
     setScreen({ kind: 'setup', notice });
   };
 
   const goOnline = (client: RemoteClient) => {
     clearHash();
-    setOnlineSession(loadOnline());
     setScreen({ kind: 'online', client, id: Date.now() });
   };
 
   const connect = async (hello: Parameters<typeof RemoteClient.connect>[1], message: string) => {
-    setScreen({ kind: 'connecting', message });
+    setScreen({ kind: 'connecting', message, code: hello.type === 'resume' ? hello.code : '' });
     try {
       goOnline(await RemoteClient.connect(SERVER_URL, hello));
     } catch (err) {
       const e = err instanceof OnlineError ? err : new OnlineError('unreachable', 'Something went wrong.');
-      if (hello.type === 'resume' && e.code !== 'unreachable') {
-        clearOnline();
+      if (hello.type === 'resume' && (e.code === 'bad_token' || e.code === 'not_found')) {
+        clearOnline(hello.code);
         return toSetup('That online game isn’t available any more.');
       }
       toSetup(e.message);
     }
   };
 
-  const resume = () => {
-    const session = loadOnline();
+  const resume = (code: string) => {
+    const session = loadOnline(code);
     if (session) void connect({ type: 'resume', code: session.code, token: session.token }, 'Rejoining your online game…');
   };
 
   useEffect(() => {
-    if (screen.kind === 'connecting') resume();
+    if (screen.kind === 'connecting') resume(screen.code);
   }, []);
 
   const beginLocal = (state: GameState) => {
@@ -168,7 +167,7 @@ export function App() {
           initial={prefs}
           notice={screen.notice ?? null}
           onlineAvailable={Boolean(SERVER_URL)}
-          onlineSession={onlineSession ? { code: onlineSession.code } : null}
+          onlineSessions={onlineSessions}
           savedGame={inProgress ? { names: `${inProgress.players.p1.name} vs ${inProgress.players.p2.name}`, turns: inProgress.history.length } : null}
           onStart={startLocal}
           onCreateOnline={createOnline}

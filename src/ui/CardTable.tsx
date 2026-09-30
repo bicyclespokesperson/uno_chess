@@ -15,6 +15,7 @@ export interface CardTableProps {
   onEndTurn: () => void;
   onChooseWild: () => void;
   onRematch: () => void;
+  rematchBlocked: string | null;
 }
 
 /** Deterministic little tilt per card so the discard pile looks tossed, not stacked. */
@@ -75,7 +76,7 @@ function Pips({ total, remaining, name, kind }: { total: number; remaining: numb
   );
 }
 
-export function CardTable({ view, canAct, waitingOnOpponent, flipId, announcement, onDraw, onEndTurn, onChooseWild, onRematch }: CardTableProps) {
+export function CardTable({ view, canAct, waitingOnOpponent, flipId, announcement, onDraw, onEndTurn, onChooseWild, onRematch, rematchBlocked }: CardTableProps) {
   const canDraw = canAct && view.phase.kind === 'draw';
   const plan = view.phase.kind === 'act' ? view.phase.plan : null;
   const canEndEarly = canAct && plan !== null && view.settings.allowEarlyEnd && plan.remaining < plan.total;
@@ -127,7 +128,7 @@ export function CardTable({ view, canAct, waitingOnOpponent, flipId, announcemen
             Choose what the wild does
           </button>
         )}
-        {view.phase.kind === 'over' && (
+        {view.phase.kind === 'over' && !rematchBlocked && (
           <button type="button" class="btn btn--primary" onClick={onRematch}>
             Rematch
           </button>

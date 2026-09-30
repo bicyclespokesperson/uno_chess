@@ -8,6 +8,7 @@ import {
   dropSquares,
   droppableTypes,
   GameError,
+  MAX_CARDS_PER_GAME,
   wildOptions,
   type Action,
   type GameState,
@@ -260,6 +261,13 @@ describe('deck and match flow', () => {
       expect(s.pockets.w.length + s.pockets.b.length).toBeLessThanOrEqual(30);
     }
   }, 60_000);
+
+  it('declares a draw once the card limit is reached', () => {
+    const s = rigged([num(1)]);
+    s.history = Array.from({ length: MAX_CARDS_PER_GAME }, (_, i) => ({ n: i + 1, player: 'p1' as const, color: 'w' as const, card: num(0), effect: null, actions: [], notes: [] }));
+    const { state } = play(s, draw);
+    expect(state.result).toEqual({ winner: null, winningColor: null, reason: 'turnLimit' });
+  });
 
   it('handles resignation and draw offers', () => {
     const s = rigged([num(1)]);

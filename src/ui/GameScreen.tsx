@@ -7,6 +7,7 @@ import {
   dropSquares,
   movesFrom,
   otherPlayer,
+  PLAYER_IDS,
   topCard,
   type Action,
   type GameEvent,
@@ -78,7 +79,12 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
   const compactMenuRef = useRef<HTMLDetailsElement>(null);
   const [meta, setMeta] = useState<OnlineMeta | null>(online?.getMeta() ?? null);
 
-  useEffect(() => online?.subscribeMeta(setMeta), [online]);
+  useEffect(() => {
+    if (!online) return;
+    const off = online.subscribeMeta(setMeta);
+    setMeta(online.getMeta());
+    return off;
+  }, [online]);
 
   useEffect(() => {
     setView(client.getView());
@@ -307,7 +313,7 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
           position={where}
           onPocketPointerDown={onPocketPointerDown}
           onPocketActivate={setSelectedPocket}
-          offline={meta !== null && meta.status === 'online' && !meta.presence[p]}
+          away={meta === null ? null : meta.room.left[p] ? 'left' : meta.status === 'online' && !meta.presence[p] ? 'offline' : null}
         />,
       ];
     }),
@@ -315,6 +321,15 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
 
   const resignCandidates = client.localPlayers;
   const myTurn = client.localPlayers.includes(actor) && view.phase.kind !== 'over';
+  const opponent = meta ? otherPlayer(meta.you) : null;
+  const rematchBlocked =
+    meta && opponent
+      ? meta.room.left[opponent]
+        ? `${view.players[opponent].name} left the game.`
+        : PLAYER_IDS.some((p) => !meta.presence[p])
+          ? `${view.players[opponent].name} is offline, so a rematch has to wait.`
+          : null
+      : null;
 
   useEffect(() => {
     if (!online) return;
@@ -413,6 +428,7 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
             onEndTurn={() => void dispatch({ type: 'endTurn' })}
             onChooseWild={() => setWildPeek(false)}
             onRematch={onRematch}
+            rematchBlocked={rematchBlocked}
           />
           {error && (
             <p class="error" role="alert">
@@ -444,7 +460,7 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
         <DrawOfferModal view={view} onAnswer={(accept) => void dispatch({ type: 'answerDraw', accept }, otherPlayer(view.drawOffer!))} />
       )}
       {view.phase.kind === 'over' && showResult && (
-        <GameOverModal view={view} online={online !== null} onRematch={onRematch} onNewGame={onNewGame} onClose={() => setShowResult(false)} />
+        <GameOverModal view={view} online={online !== null} rematchBlocked={rematchBlocked} onRematch={onRematch} onNewGame={onNewGame} onClose={() => setShowResult(false)} />
       )}
       {overlay === 'rules' && <RulesModal onClose={() => setOverlay(null)} />}
       {overlay === 'resign' && (
@@ -461,7 +477,7 @@ export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenP
       {overlay === 'newGame' && (
         <ConfirmModal
           title={online ? 'Leave this game?' : 'Start a new game?'}
-          lead={online ? 'You won’t be able to rejoin it, and your opponent will be left waiting.' : 'This game will be lost.'}
+          lead={online ? 'You’ll resign, and you won’t be able to rejoin.' : 'This game will be lost.'}
           confirm={online ? 'Leave game' : 'Abandon this game'}
           onConfirm={onNewGame}
           onClose={() => setOverlay(null)}

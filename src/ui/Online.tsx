@@ -58,19 +58,25 @@ export function Lobby({ meta, onCancel }: { meta: OnlineMeta; onCancel: () => vo
       <p class="lobby__code">
         Or give them the code <strong>{meta.code}</strong>
       </p>
-      <div class="lobby__waiting" role="status">
-        <span class="lobby__dots" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        {meta.status === 'online' ? 'Waiting for your opponent to join' : 'Reconnecting to the server'}
-      </div>
+      {meta.status === 'closed' ? (
+        <p class="notice notice--error" role="status">
+          {meta.closedReason ?? 'Disconnected.'}
+        </p>
+      ) : (
+        <div class="lobby__waiting" role="status">
+          <span class="lobby__dots" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          {meta.status === 'online' ? 'Waiting for your opponent to join' : 'Reconnecting to the server'}
+        </div>
+      )}
       <p class="lobby__settings">
         {capText(meta.room.settings.moveCap)} {whiteText(meta.room, 'host')}
       </p>
       <button type="button" class="btn btn--quiet" onClick={onCancel}>
-        Cancel this game
+        {meta.status === 'closed' ? 'Back to start' : 'Cancel this game'}
       </button>
     </div>
   );

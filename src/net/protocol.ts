@@ -15,11 +15,15 @@ export type ClientMessage =
   | { type: 'resume'; code: string; token: string }
   /** `seq` is the view the player acted on; the server rejects actions against a stale game. */
   | { type: 'action'; id: number; seq: number; action: Action }
-  | { type: 'rematch' };
+  | { type: 'rematch' }
+  /** Give up this seat for good: deletes a room nobody joined, resigns a game in progress. */
+  | { type: 'leave' };
 
 export interface RoomInfo {
   code: string;
   names: Record<PlayerId, string | null>;
+  /** Players who left for good (their seat can't be resumed). */
+  left: Record<PlayerId, boolean>;
   settings: Settings;
   white: WhiteChoice;
   status: 'waiting' | 'playing';

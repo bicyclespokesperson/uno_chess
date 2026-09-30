@@ -78,6 +78,8 @@ export class RemoteClient implements GameClient {
   private attempts = 0;
   private retryTimer: ReturnType<typeof setTimeout> | null = null;
   private disposed = false;
+  /** Another tab took this seat; that tab owns the stored session now. */
+  private replaced = false;
 
   /** Sends `create`, `join` or `resume` and resolves once the server has seated us. */
   static async connect(url: string, hello: ClientMessage): Promise<RemoteClient> {
@@ -98,7 +100,7 @@ export class RemoteClient implements GameClient {
     this.localPlayers = [welcome.you];
     this.view = welcome.view;
     this.meta = { status: 'online', you: welcome.you, code: welcome.room.code, room: welcome.room, presence: welcome.presence, closedReason: null };
-    saveOnline({ code: welcome.room.code, token: welcome.token, you: welcome.you });
+    this.remember();
     this.wire(ws);
     window.addEventListener('online', this.reconnectNow);
   }
@@ -147,9 +149,12 @@ export class RemoteClient implements GameClient {
     this.send({ type: 'rematch' });
   }
 
-  /** Stop playing on this device. The seat stays reserved on the server until the room expires. */
+  /** Give up this seat: the server cancels a room nobody joined, or resigns a game in progress. */
   leave(): void {
-    clearOnline();
+    if (!this.replaced) {
+      this.send({ type: 'leave' });
+      clearOnline(this.meta.code);
+    }
     this.dispose();
   }
 
@@ -161,6 +166,11 @@ export class RemoteClient implements GameClient {
     this.ws = null;
     this.listeners.clear();
     this.metaListeners.clear();
+  }
+
+  private remember(): void {
+    const { p1, p2 } = this.meta.room.names;
+    saveOnline({ code: this.meta.code, token: this.token, you: this.meta.you, label: p2 ? `${p1} vs ${p2}` : `${p1}, waiting for an opponent` });
   }
 
   private send(msg: ClientMessage): void {
@@ -195,23 +205,31 @@ export class RemoteClient implements GameClient {
         this.attempts = 0;
         this.view = msg.view;
         this.setMeta({ status: 'online', room: msg.room, presence: msg.presence });
+        this.remember();
         if (msg.view) this.listeners.forEach((l) => l(msg.view!, []));
         return;
       case 'state':
         this.view = msg.view;
         this.listeners.forEach((l) => l(msg.view, msg.events));
         return;
-      case 'presence':
+      case 'presence': {
+        const namesChanged = msg.room.names.p2 !== this.meta.room.names.p2;
         this.setMeta({ presence: msg.presence, room: msg.room });
+        if (namesChanged) this.remember();
         return;
+      }
       case 'ack':
         return this.settle(msg.id, { ok: true });
       case 'rejected':
         return this.settle(msg.id, { ok: false, error: msg.error });
       case 'error':
         if (msg.code === 'replaced' || msg.code === 'bad_token' || msg.code === 'not_found') {
-          if (msg.code !== 'replaced') clearOnline();
+          this.replaced = msg.code === 'replaced';
+          if (!this.replaced) clearOnline(this.meta.code);
           this.setMeta({ status: 'closed', closedReason: msg.error });
+          this.ws?.close();
+        } else if (this.meta.status === 'reconnecting') {
+          // A transient refusal (e.g. rate limited) while resuming: drop this socket so the backoff retries.
           this.ws?.close();
         }
         return;

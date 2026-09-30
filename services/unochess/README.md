@@ -40,12 +40,17 @@ The static site stays on GitHub Pages. Online games go through a small Node WebS
 - `systemctl --user status|restart unochess`, `journalctl --user -u unochess -f`
 - Deploying server changes: `git pull && npm ci && systemctl --user restart unochess`. Restarts are safe: SIGTERM flushes every room to disk, and browsers reconnect and resume on their own.
 - Don't `kill -9` it: saves are batched every 250 ms, so a hard kill can lose the last moves.
-- Stale rooms are swept hourly: games nobody joined after 2 days, and any game idle for 30 days.
+- Stale rooms are swept hourly: games nobody joined after 12 hours, and any game idle for 30 days. Leaving a game releases it right away: a room nobody joined is deleted, and leaving mid-game resigns.
 
 ## How it's protected
 
 - Only the GitHub Pages origin and the local Vite dev server may open a WebSocket (`--origin` flag to change, repeatable).
 - Each player gets a random 256-bit token kept in their browser's localStorage. The server stores only its SHA-256, and compares in constant time.
 - The server is authoritative: every action runs through the engine's `applyAction`, which validates the action's shape and legality. Clients never see the deck order or RNG state.
-- Rate limits: 20 failed joins/resumes (bad codes or tokens) per IP per 10 minutes; 30 new games per IP per hour; 10 messages/second per connection (burst 40); 16 KB per message; 5,000 rooms total. Behind Caddy, the client IP is the rightmost `X-Forwarded-For` entry.
+- Limits:
+  - Per address (IPv6 is bucketed by /64): 20 failed joins/resumes per 10 minutes, 10 new games per hour, and 16 open connections.
+  - Server-wide: 500 failed attempts per 10 minutes, 300 new games per hour, 2,000 connections, and 20,000 rooms.
+  - Per connection: 10 messages/second (burst 40) and 16 KB per message. A socket that hasn't joined a game within 30 s is closed.
+  - Per game: 1,000 cards, after which it's a draw. This keeps saved and broadcast games small.
+  - Behind Caddy, the client IP is the rightmost `X-Forwarded-For` entry.
 - The unit drops API tokens from its environment, and runs with `NoNewPrivileges`, `PrivateTmp` and `UMask=0077`.
