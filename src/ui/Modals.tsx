@@ -173,7 +173,9 @@ export function RulesModal({ onClose }: { onClose: () => void }) {
         <li>Giving check ends your turn immediately, even with moves left. Otherwise you could check and then take the king.</li>
         <li>Checkmate wins the moment it happens. If you have to move and can’t, and you’re not in check, it’s stalemate: a draw.</li>
         <li>Placed pieces follow bughouse rules: any empty square, but no pawns on the first or last rank. A placed piece can give check or block one. A pawn placed on its starting rank may still move two squares. A rook placed back home doesn’t bring castling back.</li>
+        <li>If you’re in check when a +2 or +4 comes up, the first piece you place has to block the check. If nothing can block it, you make one move instead.</li>
         <li>Captured pieces go to their own army’s pocket. A promoted piece goes back as a pawn.</li>
+        <li>Unless it was turned off at setup, you can end your turn early once you’ve made at least one move.</li>
         <li>When the deck runs out, the discard pile is shuffled into a new deck.</li>
         <li>En passant, castling and promotion work as usual. You can move the same piece more than once in a turn.</li>
       </ul>

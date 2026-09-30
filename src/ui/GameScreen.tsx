@@ -179,6 +179,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const isOwnMovable = (sq: Square) => moving && view.position.board[sq]?.color === view.turn && movesFrom(view, sq).length > 0;
 
   const activateSquare = (sq: Square) => {
+    setInstantPieceId(null);
     if (placing) {
       if (selectedPocket && dropTargets.has(sq)) void dispatch({ type: 'drop', piece: selectedPocket, to: sq });
       return;
