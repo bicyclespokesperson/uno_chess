@@ -7,6 +7,8 @@ import { effectDetail, effectHeadline, plural, resultText } from './text.ts';
 export interface CardTableProps {
   view: GameView;
   canAct: boolean;
+  /** Online: it's the other player's turn, so describe what we're waiting for instead of giving instructions. */
+  waitingOnOpponent: boolean;
   flipId: number | null;
   announcement: { text: string; key: number } | null;
   onDraw: () => void;
@@ -18,7 +20,7 @@ export interface CardTableProps {
 /** Deterministic little tilt per card so the discard pile looks tossed, not stacked. */
 const tilt = (card: Card): number => ((card.id * 47) % 17) - 8;
 
-function Prompt({ view }: { view: GameView }) {
+function Prompt({ view, waiting }: { view: GameView; waiting: boolean }) {
   const name = view.players[currentPlayer(view)].name;
   const record = currentRecord(view);
   const checked = inCheck(view.position, view.turn);
@@ -27,6 +29,10 @@ function Prompt({ view }: { view: GameView }) {
     const { title, detail } = resultText(view);
     return <Heading title={title} detail={detail} />;
   }
+  if (waiting && phase.kind === 'draw') {
+    return <Heading title={`${name}’s turn`} detail={checked ? `Waiting for ${name} to flip a card. They’re in check.` : `Waiting for ${name} to flip a card.`} />;
+  }
+  if (waiting && phase.kind === 'wild') return <Heading title="Wild!" detail={`Waiting for ${name} to choose what it does.`} />;
   if (phase.kind === 'draw') {
     return <Heading title={`${name}, flip a card`} detail={checked ? 'You’re in check. Your next move has to get out of it.' : 'Click the deck, or press F.'} />;
   }
@@ -39,6 +45,7 @@ function Prompt({ view }: { view: GameView }) {
   if (plan.kind === 'moves' && effect?.kind === 'number' && effect.value === 0) detail = 'Zero, but you’re in check: make one move to escape.';
   if (plan.kind === 'moves' && effect?.kind === 'number' && effect.value > plan.total) detail = `Capped from ${effect.value}. ${detail}`;
   if (plan.kind === 'drops') detail = 'Pick a piece from your pocket, then a highlighted square. Pawns can’t go on the first or last rank.';
+  if (waiting) detail = plan.kind === 'drops' ? `${name} is placing pieces.` : `${name} is moving.`;
   return (
     <>
       <Heading title={title} detail={detail} />
@@ -68,7 +75,7 @@ function Pips({ total, remaining, name, kind }: { total: number; remaining: numb
   );
 }
 
-export function CardTable({ view, canAct, flipId, announcement, onDraw, onEndTurn, onChooseWild, onRematch }: CardTableProps) {
+export function CardTable({ view, canAct, waitingOnOpponent, flipId, announcement, onDraw, onEndTurn, onChooseWild, onRematch }: CardTableProps) {
   const canDraw = canAct && view.phase.kind === 'draw';
   const plan = view.phase.kind === 'act' ? view.phase.plan : null;
   const canEndEarly = canAct && plan !== null && view.settings.allowEarlyEnd && plan.remaining < plan.total;
@@ -108,7 +115,7 @@ export function CardTable({ view, canAct, flipId, announcement, onDraw, onEndTur
           })}
         </div>
       </div>
-      <Prompt view={view} />
+      <Prompt view={view} waiting={waitingOnOpponent} />
       <div class="card-table__actions">
         {canEndEarly && (
           <button type="button" class="btn" onClick={onEndTurn}>

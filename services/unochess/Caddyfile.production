@@ -1,0 +1,13 @@
+# Appended to /etc/caddy/Caddyfile by install_caddy_site.sh (comment lines are stripped).
+# Caddy proxies the WebSocket upgrade on /ws without extra config.
+unochess.jeremysigrist.com {
+	encode zstd gzip
+	request_body {
+		max_size 64KB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy 127.0.0.1:7879
+}

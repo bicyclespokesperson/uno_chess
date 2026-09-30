@@ -1,6 +1,6 @@
 # Uno Chess
 
-Chess where every turn starts by flipping an Uno card. Two players, one screen, in the browser.
+Chess where every turn starts by flipping an Uno card. Two players on one screen, or online with an invite link.
 
 **Play:** https://bicyclespokesperson.github.io/uno_chess/
 
@@ -36,9 +36,12 @@ Fine print:
 ```sh
 npm install
 npm run dev        # http://127.0.0.1:5173
-npm test           # engine unit tests, perft, random-game soak test
+npm test           # engine unit tests, perft, random-game soak test, server integration tests
 npm run build      # type-check + production build into dist/
+npm run server     # online game server on 127.0.0.1:7879 (the dev build connects to it)
 ```
+
+Online play: the browser talks to `server/` over a WebSocket. See [services/unochess/README.md](services/unochess/README.md) for how it's hosted, and `npm run e2e:online` for a two-browser test against the dev servers.
 
 Pushing to `main` runs the tests and deploys to GitHub Pages (`.github/workflows/deploy.yml`).
 

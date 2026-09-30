@@ -1310,6 +1310,139 @@ a {
   margin-top: 6px;
 }
 
+/* ---------- online ---------- */
+
+.notice {
+  margin: 24px 0 0;
+  padding: 12px 16px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1b0d08;
+  font-weight: 500;
+}
+
+.notice--error {
+  border-left: 6px solid var(--uno-red);
+}
+
+.lobby {
+  display: grid;
+  justify-items: start;
+  gap: 18px;
+  padding-top: 72px;
+}
+
+.lobby__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: clamp(2rem, 7vw, 2.8rem);
+  font-weight: 400;
+  line-height: 1.05;
+  text-wrap: balance;
+}
+
+.lobby__lede,
+.lobby__settings {
+  margin: 0;
+  color: var(--cream-dim);
+  font-size: 1.05rem;
+}
+
+.invite {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.invite__link {
+  flex: 1 1 260px;
+  font-size: 0.95rem;
+}
+
+.lobby__code {
+  margin: 0;
+  color: var(--cream-dim);
+}
+
+.lobby__code strong {
+  margin-left: 0.3em;
+  color: var(--cream);
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  font-weight: 400;
+  letter-spacing: 0.12em;
+}
+
+.lobby__waiting {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 600;
+}
+
+.lobby__dots {
+  display: inline-flex;
+  gap: 5px;
+}
+
+.lobby__dots span {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--uno-yellow);
+  animation: dot 1.2s ease-in-out infinite;
+}
+
+.lobby__dots span:nth-child(2) {
+  background: var(--uno-green);
+  animation-delay: 0.15s;
+}
+
+.lobby__dots span:nth-child(3) {
+  background: var(--uno-blue);
+  animation-delay: 0.3s;
+}
+
+@keyframes dot {
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.connection {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  max-width: 1180px;
+  margin: 0 auto 12px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: #fff;
+  color: #1b0d08;
+  font-weight: 600;
+}
+
+.connection--closed {
+  border-left: 6px solid var(--uno-red);
+}
+
+.connection .btn {
+  border-color: #d9cfc9;
+  color: #1b0d08;
+}
+
+.player__offline {
+  padding: 0.12em 0.6em;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.35);
+  color: var(--cream-dim);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 1020px) {

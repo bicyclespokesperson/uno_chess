@@ -1,0 +1,27 @@
+[Unit]
+Description=Uno Chess online game server (unochess.jeremysigrist.com)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/Development/uno_chess
+ExecStart=/usr/bin/mise exec -- node server/main.ts \
+    --bind 127.0.0.1 \
+    --port 7879 \
+    --data-dir %h/.local/share/uno-chess
+Restart=on-failure
+RestartSec=5
+# SIGTERM makes the server flush every room to disk before exiting.
+KillSignal=SIGTERM
+TimeoutStopSec=15
+
+# Public-facing via Caddy: drop interactive-shell credentials it has no use for.
+UnsetEnvironment=ANTHROPIC_API_KEY OPENROUTER_API_KEY GH_TOKEN GITHUB_TOKEN LINEAR_API_KEY
+# Room files hold (hashed) player tokens; keep them private.
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=default.target

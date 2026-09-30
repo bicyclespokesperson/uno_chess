@@ -1,6 +1,6 @@
 # Architecture
 
-The game is split so that the rules never touch the DOM and the UI never touches the rules' internals. That split is what makes online play a matter of adding a server and one client class.
+The game is split so that the rules never touch the DOM and the UI never touches the rules' internals. Online play reuses the exact same rules code on the server, which is authoritative.
 
 ```mermaid
 flowchart LR
@@ -9,7 +9,7 @@ flowchart LR
     C -->|GameView + events| UI
   end
   C -.hot-seat.-> L[LocalClient] --> E[engine/ applyAction]
-  C -.future online.-> R[RemoteClient] -->|WebSocket| S[Server] --> E2[engine/ applyAction]
+  C -.online.-> R[RemoteClient] -->|WebSocket| S[server/] --> E2[engine/ applyAction]
 ```
 
 ## `src/engine/` — pure rules
@@ -23,7 +23,7 @@ flowchart LR
   - `events` describe what happened (card drawn, reverse, turn ended because of check, game over…) so the UI can animate and announce without diffing states.
   - Players and armies are separate: `armies: { w: PlayerId, b: PlayerId }`. Reverse swaps the armies; `turn` stays a color.
 
-## `src/net/` — the seam for online play
+## `src/net/` — the seam between UI and game
 
 `GameClient` is the only thing the UI talks to:
 
@@ -36,23 +36,41 @@ interface GameClient {
 }
 ```
 
-- The UI only ever receives a `GameView` (`toView(state)`), which strips the deck order and RNG state. Hot-seat play already goes through that redaction, so the UI can't accidentally depend on hidden information.
-- `dispatch` is async even locally, so a network round trip is a drop-in change.
-- The UI only lets you act when `localPlayers` includes the player whose turn it is, and draw offers / resignations are routed to local players only.
+- The UI only ever receives a `GameView` (`toView(state)`), which strips the deck order and RNG state. Hot-seat play goes through the same redaction, so the UI can't depend on hidden information.
+- The UI only lets you act when `localPlayers` includes the player whose turn it is. Draw offers and resignations are routed to local players only.
+- `LocalClient` (hot-seat) runs the engine in the page and saves to `localStorage` after every action.
+- `RemoteClient` (online) sends actions to the server and applies its broadcasts. It reconnects with backoff and resumes its seat with a stored token.
 
-`LocalClient` runs the engine in the page and saves to `localStorage` after every action.
+## Online play
 
-## Adding online play
+```mermaid
+sequenceDiagram
+  participant A as Host browser
+  participant S as server/ (engine)
+  participant B as Guest browser
+  A->>S: create {name, settings}
+  S-->>A: welcome {you: p1, token, room}
+  Note over A: shows invite link #join=CODE
+  B->>S: join {code, name}
+  S-->>B: welcome {you: p2, token, view}
+  S-->>A: state {view}
+  A->>S: action {seq, action}
+  S-->>A: ack
+  S-->>A: state {view, events}
+  S-->>B: state {view, events}
+```
 
-1. **Server** (e.g. a small Node `ws` server, or Cloudflare Durable Objects — one object per game). It imports `src/engine/` unchanged, holds the authoritative `GameState` per room, and maps each connection to a `PlayerId` via a join token.
-2. **Protocol:**
-   - client → server: `{ type: 'action', seq, action }` (the server derives `actor` from the connection, never from the message)
-   - server → both clients: `{ type: 'state', view: toView(state), events }`, or `{ type: 'rejected', error }` to the sender
-   - `seq` is `GameState.seq`; the server can reject actions sent against a stale state.
-3. **`RemoteClient implements GameClient`** with `localPlayers = [myPlayerId]`, forwarding `dispatch` over the socket and feeding broadcasts to listeners. On reconnect, the server just resends the current view.
-4. **UI tweaks:** default the board orientation so the local player sits at the bottom (`bottomSeat` in `GameScreen.tsx`), add a lobby/invite link, and show a "waiting for opponent" state when it isn't your turn (the prompt already renders; inputs are already disabled).
+- `src/net/protocol.ts` defines every message, and both sides import it.
+- `server/rooms.ts` (`RoomManager`) holds rooms and seats. It doesn't know about sockets, so it can be unit-tested.
+  - The actor for each action comes from the connection's seat, never from the message.
+  - An action sent against a stale `seq` is rejected, so a retried or duplicated action can't apply twice.
+  - A second tab for the same seat replaces the first.
+- `server/store.ts` writes one JSON file per room atomically, batched, and flushed on SIGTERM.
+- `server/main.ts` does HTTP (`/healthz`), the WebSocket upgrade on `/ws` with an Origin allow-list, per-connection rate limits and heartbeats.
+- Node 24 runs the server's TypeScript directly (type stripping). That's why imports carry `.ts` extensions and tsconfig sets `erasableSyntaxOnly`.
+- The browser finds the server through `VITE_SERVER_URL`, baked in at build time. When it's empty, online play is hidden.
 
-Nothing in `engine/` or the existing UI components needs to change for this.
+Hosting and operations are covered in [services/unochess/README.md](services/unochess/README.md).
 
 ## `src/ui/`
 
@@ -65,4 +83,5 @@ Nothing in `engine/` or the existing UI components needs to change for this.
 
 - `tests/chess.test.ts` — perft on five standard positions, plus the multi-move edge cases (own-pawn en passant, castling rights, drops).
 - `tests/game.test.ts` — every card type against a stacked deck, check-ends-turn, mate/stalemate, drops while in check, reshuffling, and a soak test that plays random legal actions through many seeded games.
-- `e2e/drive.mjs` — screenshot-driven browser checks (see README).
+- `tests/server.test.ts` — a real server on a random port with real WebSocket clients: create/join/sync, out-of-turn, stale and malformed actions, token resume and imposters, tab replacement, persistence across restart, rate limiting, Origin checks, rematch.
+- `e2e/drive.mjs` — screenshot-driven browser checks (see README). `e2e/online.mjs` plays an online game between two isolated browsers, including a disconnect and (with `RESTART_CMD`) a server restart.

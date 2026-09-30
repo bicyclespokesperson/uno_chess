@@ -14,6 +14,7 @@ import {
   type PlayerId,
 } from '../engine/game.ts';
 import type { GameClient } from '../net/client.ts';
+import type { OnlineMeta, RemoteClient } from '../net/remoteClient.ts';
 import { Board, pieceSrc, type TargetKind } from './Board.tsx';
 import { CardTable } from './CardTable.tsx';
 import { ConfirmModal, DrawOfferModal, GameOverModal, ResignModal, RulesModal, WildPicker } from './Modals.tsx';
@@ -52,11 +53,13 @@ function squareFromPoint(x: number, y: number): Square | null {
 
 export interface GameScreenProps {
   client: GameClient;
+  /** Set for online games; gives connection status and seat. */
+  online: RemoteClient | null;
   onRematch: () => void;
   onNewGame: () => void;
 }
 
-export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
+export function GameScreen({ client, online, onRematch, onNewGame }: GameScreenProps) {
   const [view, setView] = useState<GameView>(client.getView());
   const [selected, setSelected] = useState<Square | null>(null);
   const [selectedPocket, setSelectedPocket] = useState<DroppableType | null>(null);
@@ -73,6 +76,9 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const dragRef = useRef<DragState | null>(null);
   const boardWrapRef = useRef<HTMLDivElement>(null);
   const compactMenuRef = useRef<HTMLDetailsElement>(null);
+  const [meta, setMeta] = useState<OnlineMeta | null>(online?.getMeta() ?? null);
+
+  useEffect(() => online?.subscribeMeta(setMeta), [online]);
 
   useEffect(() => {
     setView(client.getView());
@@ -117,7 +123,8 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   }, [placing, droppable]);
 
   // Board orientation follows seats: each player's army sits on their side, so a Reverse spins the board.
-  const bottomSeat: PlayerId = viewFlipped ? 'p2' : 'p1';
+  const homeSeat: PlayerId = meta?.you ?? 'p1';
+  const bottomSeat: PlayerId = viewFlipped ? otherPlayer(homeSeat) : homeSeat;
   const targetWhiteAtBottom = view.armies.w === bottomSeat;
   const [shownWhiteAtBottom, setShownWhiteAtBottom] = useState(targetWhiteAtBottom);
   const [spinning, setSpinning] = useState(false);
@@ -300,12 +307,22 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
           position={where}
           onPocketPointerDown={onPocketPointerDown}
           onPocketActivate={setSelectedPocket}
+          offline={meta !== null && meta.status === 'online' && !meta.presence[p]}
         />,
       ];
     }),
   );
 
   const resignCandidates = client.localPlayers;
+  const myTurn = client.localPlayers.includes(actor) && view.phase.kind !== 'over';
+
+  useEffect(() => {
+    if (!online) return;
+    document.title = myTurn ? '(Your turn) Uno Chess' : 'Uno Chess';
+    return () => {
+      document.title = 'Uno Chess';
+    };
+  }, [online, myTurn]);
 
   const menuItems = (
     <>
@@ -326,7 +343,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
         </>
       )}
       <button type="button" class="btn btn--quiet" onClick={() => (view.phase.kind === 'over' ? onNewGame() : setOverlay('newGame'))}>
-        New game
+        {online ? 'Leave game' : 'New game'}
       </button>
     </>
   );
@@ -347,6 +364,17 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
           </div>
         </details>
       </header>
+
+      {meta && meta.status !== 'online' && (
+        <div class={`connection connection--${meta.status}`} role="status">
+          {meta.status === 'reconnecting' ? 'Connection lost. Reconnecting…' : meta.closedReason ?? 'Disconnected.'}
+          {meta.status === 'closed' && (
+            <button type="button" class="btn" onClick={onNewGame}>
+              Back to start
+            </button>
+          )}
+        </div>
+      )}
 
       <main class="layout">
         <div class="board-column">
@@ -378,6 +406,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
           <CardTable
             view={view}
             canAct={canAct && !spinning}
+            waitingOnOpponent={!client.localPlayers.includes(actor)}
             flipId={flipId}
             announcement={announcement}
             onDraw={draw}
@@ -415,7 +444,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
         <DrawOfferModal view={view} onAnswer={(accept) => void dispatch({ type: 'answerDraw', accept }, otherPlayer(view.drawOffer!))} />
       )}
       {view.phase.kind === 'over' && showResult && (
-        <GameOverModal view={view} onRematch={onRematch} onNewGame={onNewGame} onClose={() => setShowResult(false)} />
+        <GameOverModal view={view} online={online !== null} onRematch={onRematch} onNewGame={onNewGame} onClose={() => setShowResult(false)} />
       )}
       {overlay === 'rules' && <RulesModal onClose={() => setOverlay(null)} />}
       {overlay === 'resign' && (
@@ -431,9 +460,9 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
       )}
       {overlay === 'newGame' && (
         <ConfirmModal
-          title="Start a new game?"
-          lead="This game will be lost."
-          confirm="Abandon this game"
+          title={online ? 'Leave this game?' : 'Start a new game?'}
+          lead={online ? 'You won’t be able to rejoin it, and your opponent will be left waiting.' : 'This game will be lost.'}
+          confirm={online ? 'Leave game' : 'Abandon this game'}
           onConfirm={onNewGame}
           onClose={() => setOverlay(null)}
         />

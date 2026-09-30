@@ -8,7 +8,9 @@
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "server": "node server/main.ts",
+    "e2e:online": "node e2e/online.mjs"
   },
   "dependencies": {
     "@fontsource-variable/rubik": "^5.3.0",

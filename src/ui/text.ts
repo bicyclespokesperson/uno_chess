@@ -68,6 +68,7 @@ export function eventAnnouncement(event: GameEvent, view: GameView): string | nu
       return `Reverse! ${name(event.armies.w)} now plays White, ${name(event.armies.b)} plays Black.`;
     case 'reshuffled': return 'The deck ran out, so the discard pile was reshuffled.';
     case 'drawDeclined': return `${name(event.by)} declined the draw.`;
+    case 'drawOffered': return `${name(event.by)} offered a draw.`;
     case 'turnEnded':
       switch (event.reason) {
         case 'check': return `Check! That ends the turn. ${name(event.next)}, you’re up.`;

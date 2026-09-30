@@ -1,17 +1,30 @@
 import { useState } from 'preact/hooks';
 import { DEFAULT_SETTINGS, MOVE_CAP_OPTIONS, type PlayerId, type Settings } from '../engine/game.ts';
+import { MAX_NAME_LENGTH } from '../net/protocol.ts';
 import type { Prefs } from '../net/storage.ts';
 import { RulesModal } from './Modals.tsx';
 import { UnoCard } from './UnoCard.tsx';
 
 export interface SetupProps {
   initial: Prefs | null;
+  notice: string | null;
+  onlineAvailable: boolean;
+  onlineSession: { code: string } | null;
   savedGame: { names: string; turns: number } | null;
   onStart: (prefs: Prefs) => void;
+  onCreateOnline: (prefs: Prefs) => void;
   onContinue: () => void;
+  onResumeOnline: () => void;
 }
 
-const DEFAULT_PREFS: Prefs = { names: { p1: 'Player 1', p2: 'Player 2' }, settings: DEFAULT_SETTINGS, whiteChoice: 'p1' };
+const DEFAULT_PREFS: Prefs = {
+  names: { p1: 'Player 1', p2: 'Player 2' },
+  settings: DEFAULT_SETTINGS,
+  whiteChoice: 'p1',
+  mode: 'local',
+  onlineName: '',
+  onlineWhite: 'host',
+};
 
 function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
   return (
@@ -29,14 +42,17 @@ function Segmented<T extends string | number>({ label, options, value, onChange 
   );
 }
 
-export function Setup({ initial, savedGame, onStart, onContinue }: SetupProps) {
+export function Setup({ initial, notice, onlineAvailable, onlineSession, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline }: SetupProps) {
   const [prefs, setPrefs] = useState<Prefs>({ ...DEFAULT_PREFS, ...initial, settings: { ...DEFAULT_SETTINGS, ...initial?.settings } });
   const [showRules, setShowRules] = useState(false);
   const setName = (p: PlayerId, name: string) => setPrefs({ ...prefs, names: { ...prefs.names, [p]: name } });
   const setSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => setPrefs({ ...prefs, settings: { ...prefs.settings, [key]: value } });
 
+  const online = onlineAvailable && prefs.mode === 'online';
+
   const start = (e: Event) => {
     e.preventDefault();
+    if (online) return onCreateOnline({ ...prefs, onlineName: (prefs.onlineName ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Player 1' });
     const clean = (p: PlayerId, fallback: string) => prefs.names[p].trim().slice(0, 24) || fallback;
     const names = { p1: clean('p1', 'Player 1'), p2: clean('p2', 'Player 2') };
     if (names.p1 === names.p2) names.p2 = `${names.p2} (2)`;
@@ -54,8 +70,24 @@ export function Setup({ initial, savedGame, onStart, onContinue }: SetupProps) {
         <h1 class="hero__title">
           Uno<span>Chess</span>
         </h1>
-        <p class="hero__lede">Every turn, flip a card. A 3 means three moves in a row. Reverse spins the board and you swap armies. +2 brings captured pieces back. Two players, one screen.</p>
+        <p class="hero__lede">
+          Every turn, flip a card. A 3 means three moves in a row. Reverse spins the board and you swap armies. +2 brings captured pieces back.
+          {onlineAvailable ? ' Play on one screen, or send a friend a link.' : ' Two players, one screen.'}
+        </p>
       </header>
+
+      {notice && <p class="notice notice--error">{notice}</p>}
+
+      {onlineSession && (
+        <section class="resume">
+          <p>
+            <strong>Online game {onlineSession.code}</strong> is still going.
+          </p>
+          <button type="button" class="btn btn--primary" onClick={onResumeOnline}>
+            Rejoin
+          </button>
+        </section>
+      )}
 
       {savedGame && (
         <section class="resume">
@@ -69,26 +101,58 @@ export function Setup({ initial, savedGame, onStart, onContinue }: SetupProps) {
       )}
 
       <form class="setup__form" onSubmit={start}>
-        <div class="names">
-          <label class="field">
-            <span class="field__label">Player 1 (near side)</span>
-            <input class="input" value={prefs.names.p1} maxLength={24} onInput={(e) => setName('p1', e.currentTarget.value)} />
-          </label>
-          <label class="field">
-            <span class="field__label">Player 2 (far side)</span>
-            <input class="input" value={prefs.names.p2} maxLength={24} onInput={(e) => setName('p2', e.currentTarget.value)} />
-          </label>
-        </div>
-        <Segmented
-          label="Who starts as White"
-          value={prefs.whiteChoice}
-          onChange={(whiteChoice) => setPrefs({ ...prefs, whiteChoice })}
-          options={[
-            { value: 'p1', label: prefs.names.p1.trim() || 'Player 1' },
-            { value: 'p2', label: prefs.names.p2.trim() || 'Player 2' },
-            { value: 'random', label: 'Random' },
-          ]}
-        />
+        {onlineAvailable && (
+          <Segmented
+            label="Where are you playing?"
+            value={prefs.mode ?? 'local'}
+            onChange={(mode) => setPrefs({ ...prefs, mode })}
+            options={[
+              { value: 'local', label: 'Same screen' },
+              { value: 'online', label: 'Online, with a link' },
+            ]}
+          />
+        )}
+        {online ? (
+          <>
+            <label class="field">
+              <span class="field__label">Your name</span>
+              <input class="input" value={prefs.onlineName} placeholder="Player 1" maxLength={MAX_NAME_LENGTH} onInput={(e) => setPrefs({ ...prefs, onlineName: e.currentTarget.value })} />
+            </label>
+            <Segmented
+              label="Who starts as White"
+              value={prefs.onlineWhite ?? 'host'}
+              onChange={(onlineWhite) => setPrefs({ ...prefs, onlineWhite })}
+              options={[
+                { value: 'host', label: 'Me' },
+                { value: 'guest', label: 'My opponent' },
+                { value: 'random', label: 'Random' },
+              ]}
+            />
+          </>
+        ) : (
+          <>
+            <div class="names">
+              <label class="field">
+                <span class="field__label">Player 1 (near side)</span>
+                <input class="input" value={prefs.names.p1} maxLength={24} onInput={(e) => setName('p1', e.currentTarget.value)} />
+              </label>
+              <label class="field">
+                <span class="field__label">Player 2 (far side)</span>
+                <input class="input" value={prefs.names.p2} maxLength={24} onInput={(e) => setName('p2', e.currentTarget.value)} />
+              </label>
+            </div>
+            <Segmented
+              label="Who starts as White"
+              value={prefs.whiteChoice}
+              onChange={(whiteChoice) => setPrefs({ ...prefs, whiteChoice })}
+              options={[
+                { value: 'p1', label: prefs.names.p1.trim() || 'Player 1' },
+                { value: 'p2', label: prefs.names.p2.trim() || 'Player 2' },
+                { value: 'random', label: 'Random' },
+              ]}
+            />
+          </>
+        )}
         <Segmented
           label="Most moves a number card can give"
           value={prefs.settings.moveCap}
@@ -101,7 +165,7 @@ export function Setup({ initial, savedGame, onStart, onContinue }: SetupProps) {
         </label>
         <div class="setup__actions">
           <button type="submit" class="btn btn--primary btn--big">
-            Deal
+            {online ? 'Create game' : 'Deal'}
           </button>
           <button type="button" class="btn btn--quiet" onClick={() => setShowRules(true)}>
             How to play

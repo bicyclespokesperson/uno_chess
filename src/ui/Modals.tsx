@@ -73,7 +73,7 @@ export function WildPicker({ settings, name, onPick, onPeek }: { settings: Setti
   );
 }
 
-export function GameOverModal({ view, onRematch, onNewGame, onClose }: { view: GameView; onRematch: () => void; onNewGame: () => void; onClose: () => void }) {
+export function GameOverModal({ view, online, onRematch, onNewGame, onClose }: { view: GameView; online: boolean; onRematch: () => void; onNewGame: () => void; onClose: () => void }) {
   const { title, detail } = resultText(view);
   return (
     <Modal title={title} onClose={onClose}>
@@ -84,7 +84,7 @@ export function GameOverModal({ view, onRematch, onNewGame, onClose }: { view: G
           Rematch
         </button>
         <button type="button" class="btn" onClick={onNewGame}>
-          New players or settings
+          {online ? 'Leave' : 'New players or settings'}
         </button>
       </div>
     </Modal>

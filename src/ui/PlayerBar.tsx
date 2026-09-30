@@ -14,6 +14,8 @@ export interface PlayerBarProps {
   position: 'top' | 'bottom';
   onPocketPointerDown: (piece: DroppableType, e: PointerEvent) => void;
   onPocketActivate: (piece: DroppableType) => void;
+  /** Online opponent whose connection dropped. */
+  offline?: boolean;
 }
 
 export function PlayerBar(props: PlayerBarProps) {
@@ -25,6 +27,7 @@ export function PlayerBar(props: PlayerBarProps) {
         <span class={`army-chip army-chip--${props.color}`} aria-hidden="true" />
         <span class="player__name">{props.name}</span>
         <span class="player__army">{COLOR_NAME[props.color]}</span>
+        {props.offline && <span class="player__offline">offline</span>}
         {props.active && <span class={`player__turn ${props.inCheck ? 'player__turn--check' : ''}`}>{props.inCheck ? 'in check' : 'to play'}</span>}
       </div>
       <div class={`pocket ${placing ? 'pocket--placing' : ''}`} aria-label={`Captured ${COLOR_NAME[props.color]} pieces`}>
