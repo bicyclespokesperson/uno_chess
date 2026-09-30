@@ -398,7 +398,7 @@ export function moveToSan(pos: Position, color: Color, move: Move): string {
 
 export function dropToSan(pos: Position, color: Color, type: DroppableType, to: Square): string {
   const after = applyDrop(pos, color, type, to);
-  return `${type === 'p' ? '' : type.toUpperCase()}@${squareName(to)}${checkSuffix(after, color)}`;
+  return `${type.toUpperCase()}@${squareName(to)}${checkSuffix(after, color)}`;
 }
 
 export function perft(pos: Position, color: Color, depth: number): number {

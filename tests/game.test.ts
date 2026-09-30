@@ -161,7 +161,7 @@ describe('draw cards and drops', () => {
     ({ state } = play(state, drop('n', 'c3'), drop('p', 'd2')));
     expect(state.pockets.w).toEqual(['q']);
     expect(state.turn).toBe('b');
-    expect(state.history[0].actions).toEqual(['N@c3', '@d2']);
+    expect(state.history[0].actions).toEqual(['N@c3', 'P@d2']);
   });
 
   it('+4 with only one pocketed piece places just that piece', () => {

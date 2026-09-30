@@ -160,10 +160,23 @@ export function createGame({ names, whitePlayer, settings, seed }: NewGameOption
   };
 }
 
-export const currentPlayer = (s: GameState): PlayerId => s.armies[s.turn];
-export const colorOf = (s: GameState, player: PlayerId): Color => (s.armies.w === player ? 'w' : 'b');
-export const topCard = (s: GameState): Card | null => s.discard[s.discard.length - 1] ?? null;
-export const currentRecord = (s: GameState): TurnRecord | null => s.history[s.history.length - 1] ?? null;
+/**
+ * Everything a player is allowed to see. The deck order and RNG are secrets a server would keep;
+ * the UI only ever receives this view, even in local hot-seat play.
+ */
+export type GameView = Omit<GameState, 'drawPile' | 'rng' | 'seed'> & { drawPileCount: number };
+
+export function toView(s: GameState): GameView {
+  const { drawPile, rng: _rng, seed: _seed, ...visible } = s;
+  return { ...visible, drawPileCount: drawPile.length };
+}
+
+type Viewable = Omit<GameState, 'drawPile' | 'rng' | 'seed'>;
+
+export const currentPlayer = (s: Viewable): PlayerId => s.armies[s.turn];
+export const colorOf = (s: Viewable, player: PlayerId): Color => (s.armies.w === player ? 'w' : 'b');
+export const topCard = (s: Viewable): Card | null => s.discard[s.discard.length - 1] ?? null;
+export const currentRecord = (s: Viewable): TurnRecord | null => s.history[s.history.length - 1] ?? null;
 
 export function wildOptions(settings: Settings): Effect[] {
   const numbers = Array.from({ length: Math.min(settings.moveCap, 9) }, (_, i): Effect => ({ kind: 'number', value: i + 1 }));
@@ -175,23 +188,23 @@ function isAllowedWildChoice(settings: Settings, effect: Effect): boolean {
 }
 
 /** Legal destination moves for the piece on `from`, when the current player may move. */
-export function movesFrom(s: GameState, from: Square): Move[] {
+export function movesFrom(s: Viewable, from: Square): Move[] {
   if (s.phase.kind !== 'act' || s.phase.plan.kind !== 'moves') return [];
   return legalMoves(s.position, s.turn).filter((m) => m.from === from);
 }
 
-export function dropSquares(s: GameState, piece: DroppableType): Square[] {
+export function dropSquares(s: Viewable, piece: DroppableType): Square[] {
   if (s.phase.kind !== 'act' || s.phase.plan.kind !== 'drops') return [];
   if (!s.pockets[s.turn].includes(piece)) return [];
   return legalDropSquares(s.position, s.turn, piece);
 }
 
-export function droppableTypes(s: GameState): DroppableType[] {
+export function droppableTypes(s: Viewable): DroppableType[] {
   const unique = [...new Set(s.pockets[s.turn])];
   return unique.filter((t) => legalDropSquares(s.position, s.turn, t).length > 0);
 }
 
-const canDropAny = (s: GameState): boolean => droppableTypes(s).length > 0;
+const canDropAny = (s: Viewable): boolean => droppableTypes(s).length > 0;
 
 export function applyAction(state: GameState, actor: PlayerId, action: Action): ActionOutcome {
   if (state.phase.kind === 'over') throw new GameError('The game is over.');
