@@ -449,7 +449,7 @@ a {
   padding: 0.12em 0.6em;
   border-radius: 999px;
   background: var(--accent);
-  color: #000;
+  color: var(--accent-ink, #000);
   font-size: 0.8rem;
   font-weight: 700;
   box-shadow: 0 0 0 2px #000;
@@ -506,6 +506,42 @@ a {
 
 .pocket--placing .pocket__piece:disabled {
   opacity: 0.35;
+}
+
+.menu-compact {
+  position: relative;
+  display: none;
+}
+
+.menu-compact summary {
+  list-style: none;
+}
+
+.menu-compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.menu-compact__list {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 30;
+  display: grid;
+  min-width: 190px;
+  padding: 6px;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.45);
+}
+
+.menu-compact__list .btn {
+  justify-content: flex-start;
+  color: #1b0d08;
+}
+
+.menu-compact__list .btn:hover:not(:disabled) {
+  background: #f3eeea;
+  color: #1b0d08;
 }
 
 .pocket__piece--selected {
@@ -1308,9 +1344,21 @@ a {
     padding: 5px;
   }
 
-  .menu .btn {
-    padding: 0.4em 0.55em;
-    font-size: 0.88rem;
+  .topbar {
+    flex-wrap: nowrap;
+  }
+
+  .menu {
+    display: none;
+  }
+
+  .menu-compact {
+    display: block;
+  }
+
+  .wordmark {
+    flex: none;
+    font-size: 1.1rem;
   }
 
   .card-table {

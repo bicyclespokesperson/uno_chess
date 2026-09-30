@@ -86,7 +86,7 @@ export interface GameState {
   /** The army whose card-turn it is. */
   turn: Color;
   position: Position;
-  /** Captured pieces of each colour, waiting to be dropped back by a +2/+4. */
+  /** Captured pieces of each color, waiting to be dropped back by a +2/+4. */
   pockets: Record<Color, DroppableType[]>;
   drawPile: Card[];
   /** Face-up pile; the last element is the top card. */

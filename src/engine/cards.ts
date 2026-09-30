@@ -13,7 +13,7 @@ export type Effect =
   | { kind: 'reverse' }
   | { kind: 'draw'; count: number };
 
-/** The standard 108-card deck: per colour one 0, two each of 1–9, Skip, Reverse, Draw Two; plus 4 Wild and 4 Wild Draw Four. */
+/** The standard 108-card deck: per color one 0, two each of 1–9, Skip, Reverse, Draw Two; plus 4 Wild and 4 Wild Draw Four. */
 export function standardDeck(): Card[] {
   const cards: Card[] = [];
   let id = 1;

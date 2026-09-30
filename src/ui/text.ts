@@ -1,6 +1,6 @@
 import type { Color, PieceType } from '../engine/chess';
 import type { Effect } from '../engine/cards';
-import type { EndReason, GameEvent, GameView, PlayerId, TurnNote, TurnRecord } from '../engine/game';
+import type { EndReason, GameEvent, GameView, PlayerId, TurnNote } from '../engine/game';
 
 export const COLOR_NAME: Record<Color, string> = { w: 'White', b: 'Black' };
 export const PIECE_NAME: Record<PieceType, string> = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
@@ -43,11 +43,6 @@ const NOTE_TEXT: Record<TurnNote, string> = {
 };
 
 export const noteText = (note: TurnNote): string => NOTE_TEXT[note];
-
-export function recordSummary(record: TurnRecord): string {
-  const parts = record.actions.length ? record.actions.join(', ') : '';
-  return parts;
-}
 
 export function resultText(view: GameView): { title: string; detail: string } {
   const result = view.result;

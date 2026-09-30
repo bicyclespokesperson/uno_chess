@@ -72,6 +72,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const [error, setError] = useState<string | null>(null);
   const dragRef = useRef<DragState | null>(null);
   const boardWrapRef = useRef<HTMLDivElement>(null);
+  const compactMenuRef = useRef<HTMLDetailsElement>(null);
 
   useEffect(() => {
     setView(client.getView());
@@ -273,6 +274,7 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
   const checkSquare = inCheck(view.position, checkedColor) ? kingSquare(view.position, checkedColor) : null;
   const top = topCard(view);
   const accent = top && 'color' in top ? `var(--uno-${top.color})` : 'var(--wild-accent)';
+  const accentInk = top && 'color' in top && top.color !== 'yellow' ? '#fff' : '#000';
   const topSeat = otherPlayer(bottomSeat);
   const seats: [PlayerId, 'top' | 'bottom'][] = [
     [topSeat, 'top'],
@@ -303,33 +305,45 @@ export function GameScreen({ client, onRematch, onNewGame }: GameScreenProps) {
 
   const resignCandidates = client.localPlayers;
 
+  const menuItems = (
+    <>
+      <button type="button" class="btn btn--quiet" onClick={() => setOverlay('rules')}>
+        How to play
+      </button>
+      <button type="button" class="btn btn--quiet" onClick={() => setViewFlipped((f) => !f)} disabled={spinning}>
+        Flip board
+      </button>
+      {view.phase.kind !== 'over' && (
+        <>
+          <button type="button" class="btn btn--quiet" onClick={() => void dispatch({ type: 'offerDraw' }, canAct ? actor : client.localPlayers[0])} disabled={view.drawOffer !== null}>
+            Offer draw
+          </button>
+          <button type="button" class="btn btn--quiet" onClick={() => setOverlay('resign')}>
+            Resign
+          </button>
+        </>
+      )}
+      <button type="button" class="btn btn--quiet" onClick={() => (view.phase.kind === 'over' ? onNewGame() : setOverlay('newGame'))}>
+        New game
+      </button>
+    </>
+  );
+
   return (
-    <div class="game" style={{ '--accent': accent } as Record<string, string>}>
+    <div class="game" style={{ '--accent': accent, '--accent-ink': accentInk } as Record<string, string>}>
       <header class="topbar">
         <h1 class="wordmark">
           Uno<span>Chess</span>
         </h1>
         <nav class="menu" aria-label="Game">
-          <button type="button" class="btn btn--quiet" onClick={() => setOverlay('rules')}>
-            How to play
-          </button>
-          <button type="button" class="btn btn--quiet" onClick={() => setViewFlipped((f) => !f)} disabled={spinning}>
-            Flip board
-          </button>
-          {view.phase.kind !== 'over' && (
-            <>
-              <button type="button" class="btn btn--quiet" onClick={() => void dispatch({ type: 'offerDraw' })} disabled={view.drawOffer !== null}>
-                Offer draw
-              </button>
-              <button type="button" class="btn btn--quiet" onClick={() => setOverlay('resign')}>
-                Resign
-              </button>
-            </>
-          )}
-          <button type="button" class="btn btn--quiet" onClick={() => (view.phase.kind === 'over' ? onNewGame() : setOverlay('newGame'))}>
-            New game
-          </button>
+          {menuItems}
         </nav>
+        <details class="menu-compact" ref={compactMenuRef}>
+          <summary class="btn">Menu</summary>
+          <div class="menu-compact__list" onClick={() => compactMenuRef.current?.removeAttribute('open')}>
+            {menuItems}
+          </div>
+        </details>
       </header>
 
       <main class="layout">
