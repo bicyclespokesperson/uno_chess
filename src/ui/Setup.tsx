@@ -1,6 +1,6 @@
 import { useState } from 'preact/hooks';
 import { DEFAULT_SETTINGS, MOVE_CAP_OPTIONS, type PlayerId, type Settings } from '../engine/game.ts';
-import { MAX_NAME_LENGTH } from '../net/protocol.ts';
+import { MAX_NAME_LENGTH, normalizeRoomCode, ROOM_CODE_LENGTH } from '../net/protocol.ts';
 import type { OnlineSession, Prefs } from '../net/storage.ts';
 import { RulesModal } from './Modals.tsx';
 import { UnoCard } from './UnoCard.tsx';
@@ -15,6 +15,7 @@ export interface SetupProps {
   onCreateOnline: (prefs: Prefs) => void;
   onContinue: () => void;
   onResumeOnline: (code: string) => void;
+  onJoinCode: (code: string) => void;
 }
 
 const DEFAULT_PREFS: Prefs = {
@@ -42,7 +43,45 @@ function Segmented<T extends string | number>({ label, options, value, onChange 
   );
 }
 
-export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline }: SetupProps) {
+function JoinByCode({ onJoin }: { onJoin: (code: string) => void }) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const submit = (e: Event) => {
+    e.preventDefault();
+    const normalized = normalizeRoomCode(code);
+    if (normalized.length !== ROOM_CODE_LENGTH) return setError(`Game codes are ${ROOM_CODE_LENGTH} letters and numbers.`);
+    onJoin(normalized);
+  };
+  return (
+    <form class="join-code" onSubmit={submit}>
+      <label class="field">
+        <span class="field__label">Got a game code from a friend?</span>
+        <span class="join-code__row">
+          <input
+            class="input join-code__input"
+            value={code}
+            maxLength={ROOM_CODE_LENGTH + 4}
+            autoComplete="off"
+            autoCapitalize="characters"
+            spellcheck={false}
+            placeholder="ABC123"
+            aria-invalid={error !== null}
+            onInput={(e) => {
+              setCode(e.currentTarget.value.toUpperCase());
+              setError(null);
+            }}
+          />
+          <button type="submit" class="btn">
+            Join game
+          </button>
+        </span>
+      </label>
+      {error && <p class="join-code__error">{error}</p>}
+    </form>
+  );
+}
+
+export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline, onJoinCode }: SetupProps) {
   const [prefs, setPrefs] = useState<Prefs>({ ...DEFAULT_PREFS, ...initial, settings: { ...DEFAULT_SETTINGS, ...initial?.settings } });
   const [showRules, setShowRules] = useState(false);
   const setName = (p: PlayerId, name: string) => setPrefs({ ...prefs, names: { ...prefs.names, [p]: name } });
@@ -172,6 +211,7 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
           </button>
         </div>
       </form>
+      {onlineAvailable && <JoinByCode onJoin={onJoinCode} />}
       <footer class="credits">
         Inspired by{' '}
         <a href="https://old.reddit.com/r/AnarchyChess/comments/1wsbpwa/sorry_im_new_to_chess_is_this_legal/" target="_blank" rel="noreferrer">

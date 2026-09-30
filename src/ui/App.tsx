@@ -173,6 +173,7 @@ export function App() {
           onCreateOnline={createOnline}
           onContinue={() => inProgress && beginLocal(inProgress)}
           onResumeOnline={resume}
+          onJoinCode={(code) => (loadOnline(code) ? resume(code) : setScreen({ kind: 'join', code }))}
         />
       );
     }

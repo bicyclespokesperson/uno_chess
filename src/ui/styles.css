@@ -334,6 +334,36 @@ a {
   margin-top: 6px;
 }
 
+.join-code {
+  margin-top: 36px;
+  padding-top: 24px;
+  border-top: 1px solid var(--cream-faint);
+}
+
+.join-code__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.join-code__input {
+  flex: 0 1 11rem;
+  font-family: var(--font-display);
+  font-size: 1.2rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.join-code__input::placeholder {
+  color: rgba(255, 241, 220, 0.3);
+}
+
+.join-code__error {
+  margin: 8px 0 0;
+  color: #ffb4a8;
+  font-weight: 600;
+}
+
 .credits {
   margin-top: 48px;
   font-size: 0.85rem;
