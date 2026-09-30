@@ -18,19 +18,29 @@ export interface SetupProps {
   onJoinCode: (code: string) => void;
 }
 
+type Mode = 'create' | 'join' | 'local';
+
 const DEFAULT_PREFS: Prefs = {
   names: { p1: 'Player 1', p2: 'Player 2' },
   settings: DEFAULT_SETTINGS,
   whiteChoice: 'p1',
-  mode: 'local',
   onlineName: '',
   onlineWhite: 'host',
 };
 
-function Segmented<T extends string | number>({ label, options, value, onChange }: { label: string; options: { value: T; label: string }[]; value: T; onChange: (v: T) => void }) {
+interface SegmentedProps<T> {
+  label: string;
+  options: { value: T; label: string }[];
+  value: T;
+  onChange: (v: T) => void;
+  hideLabel?: boolean;
+  class?: string;
+}
+
+function Segmented<T extends string | number>({ label, options, value, onChange, hideLabel, class: className = '' }: SegmentedProps<T>) {
   return (
-    <fieldset class="field">
-      <legend class="field__label">{label}</legend>
+    <fieldset class={`field ${className}`}>
+      <legend class={hideLabel ? 'visually-hidden' : 'field__label'}>{label}</legend>
       <div class="segmented">
         {options.map((o) => (
           <label key={String(o.value)} class={`segmented__option ${o.value === value ? 'is-checked' : ''}`}>
@@ -43,60 +53,47 @@ function Segmented<T extends string | number>({ label, options, value, onChange 
   );
 }
 
-function JoinByCode({ onJoin }: { onJoin: (code: string) => void }) {
-  const [code, setCode] = useState('');
-  const [error, setError] = useState<string | null>(null);
-  const submit = (e: Event) => {
-    e.preventDefault();
-    const normalized = normalizeRoomCode(code);
-    if (normalized.length !== ROOM_CODE_LENGTH) return setError(`Game codes are ${ROOM_CODE_LENGTH} letters and numbers.`);
-    onJoin(normalized);
-  };
+function RulesSettings({ settings, onChange }: { settings: Settings; onChange: <K extends keyof Settings>(key: K, value: Settings[K]) => void }) {
   return (
-    <form class="join-code" onSubmit={submit}>
-      <label class="field">
-        <span class="field__label">Got a game code from a friend?</span>
-        <span class="join-code__row">
-          <input
-            class="input join-code__input"
-            value={code}
-            maxLength={ROOM_CODE_LENGTH + 4}
-            autoComplete="off"
-            autoCapitalize="characters"
-            spellcheck={false}
-            placeholder="ABC123"
-            aria-invalid={error !== null}
-            onInput={(e) => {
-              setCode(e.currentTarget.value.toUpperCase());
-              setError(null);
-            }}
-          />
-          <button type="submit" class="btn">
-            Join game
-          </button>
-        </span>
+    <>
+      <Segmented
+        label="Most moves a number card can give"
+        value={settings.moveCap}
+        onChange={(v) => onChange('moveCap', v)}
+        options={MOVE_CAP_OPTIONS.map((n) => ({ value: n, label: n === 9 ? 'No cap' : String(n) }))}
+      />
+      <label class="check">
+        <input type="checkbox" checked={settings.allowEarlyEnd} onChange={(e) => onChange('allowEarlyEnd', e.currentTarget.checked)} />
+        <span>Allow ending a turn before using every move</span>
       </label>
-      {error && <p class="join-code__error">{error}</p>}
-    </form>
+    </>
   );
 }
 
 export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedGame, onStart, onCreateOnline, onContinue, onResumeOnline, onJoinCode }: SetupProps) {
   const [prefs, setPrefs] = useState<Prefs>({ ...DEFAULT_PREFS, ...initial, settings: { ...DEFAULT_SETTINGS, ...initial?.settings } });
+  const [mode, setMode] = useState<Mode>(onlineAvailable ? 'create' : 'local');
+  const [code, setCode] = useState('');
+  const [codeError, setCodeError] = useState<string | null>(null);
   const [showRules, setShowRules] = useState(false);
   const setName = (p: PlayerId, name: string) => setPrefs({ ...prefs, names: { ...prefs.names, [p]: name } });
   const setSetting = <K extends keyof Settings>(key: K, value: Settings[K]) => setPrefs({ ...prefs, settings: { ...prefs.settings, [key]: value } });
 
-  const online = onlineAvailable && prefs.mode === 'online';
-
-  const start = (e: Event) => {
+  const submit = (e: Event) => {
     e.preventDefault();
-    if (online) return onCreateOnline({ ...prefs, onlineName: (prefs.onlineName ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Player 1' });
+    if (mode === 'join') {
+      const normalized = normalizeRoomCode(code);
+      if (normalized.length !== ROOM_CODE_LENGTH) return setCodeError(`Game codes are ${ROOM_CODE_LENGTH} letters and numbers.`);
+      return onJoinCode(normalized);
+    }
+    if (mode === 'create') return onCreateOnline({ ...prefs, onlineName: (prefs.onlineName ?? '').trim().slice(0, MAX_NAME_LENGTH) || 'Player 1' });
     const clean = (p: PlayerId, fallback: string) => prefs.names[p].trim().slice(0, 24) || fallback;
     const names = { p1: clean('p1', 'Player 1'), p2: clean('p2', 'Player 2') };
     if (names.p1 === names.p2) names.p2 = `${names.p2} (2)`;
     onStart({ ...prefs, names });
   };
+
+  const submitLabel: Record<Mode, string> = { create: 'Create game', join: 'Join game', local: 'Deal' };
 
   return (
     <div class="setup">
@@ -111,7 +108,7 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
         </h1>
         <p class="hero__lede">
           Every turn, flip a card. A 3 means three moves in a row. Reverse spins the board and you swap armies. +2 brings captured pieces back.
-          {onlineAvailable ? ' Play on one screen, or send a friend a link.' : ' Two players, one screen.'}
+          {onlineAvailable ? ' Play a friend online, or pass one screen back and forth.' : ' Two players, one screen.'}
         </p>
       </header>
 
@@ -131,7 +128,7 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
       {savedGame && (
         <section class="resume">
           <p>
-            <strong>Game in progress:</strong> {savedGame.names}, {savedGame.turns === 1 ? "1 card" : `${savedGame.turns} cards`} flipped.
+            <strong>Game in progress:</strong> {savedGame.names}, {savedGame.turns === 1 ? '1 card' : `${savedGame.turns} cards`} flipped.
           </p>
           <button type="button" class="btn btn--primary" onClick={onContinue}>
             Continue game
@@ -139,20 +136,27 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
         </section>
       )}
 
-      <form class="setup__form" onSubmit={start}>
+      <form class="setup__form" onSubmit={submit}>
         {onlineAvailable && (
           <Segmented
-            label="Where are you playing?"
-            value={prefs.mode ?? 'local'}
-            onChange={(mode) => setPrefs({ ...prefs, mode })}
+            label="How do you want to play?"
+            hideLabel
+            class="mode-switch"
+            value={mode}
+            onChange={(m) => {
+              setMode(m);
+              setCodeError(null);
+            }}
             options={[
+              { value: 'create', label: 'Create game' },
+              { value: 'join', label: 'Join game' },
               { value: 'local', label: 'Same screen' },
-              { value: 'online', label: 'Online, with a link' },
             ]}
           />
         )}
-        {online ? (
+        {mode === 'create' && (
           <>
+            <p class="mode-hint">You’ll get a link to send your opponent.</p>
             <label class="field">
               <span class="field__label">Your name</span>
               <input class="input" value={prefs.onlineName} placeholder="Player 1" maxLength={MAX_NAME_LENGTH} onInput={(e) => setPrefs({ ...prefs, onlineName: e.currentTarget.value })} />
@@ -167,9 +171,35 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
                 { value: 'random', label: 'Random' },
               ]}
             />
+            <RulesSettings settings={prefs.settings} onChange={setSetting} />
           </>
-        ) : (
+        )}
+        {mode === 'join' && (
+          <label class="field">
+            <span class="field__label">Game code</span>
+            <input
+              class="input join-code__input"
+              value={code}
+              maxLength={ROOM_CODE_LENGTH + 4}
+              autoComplete="off"
+              autoCapitalize="characters"
+              spellcheck={false}
+              placeholder="ABC123"
+              aria-invalid={codeError !== null}
+              aria-describedby="code-help"
+              onInput={(e) => {
+                setCode(e.currentTarget.value.toUpperCase());
+                setCodeError(null);
+              }}
+            />
+            <span id="code-help" class={codeError ? 'join-code__error' : 'field__help'}>
+              {codeError ?? 'Ask the person who created the game, or just open the link they sent.'}
+            </span>
+          </label>
+        )}
+        {mode === 'local' && (
           <>
+            {onlineAvailable && <p class="mode-hint">Two players taking turns on this device.</p>}
             <div class="names">
               <label class="field">
                 <span class="field__label">Player 1 (near side)</span>
@@ -190,28 +220,18 @@ export function Setup({ initial, notice, onlineAvailable, onlineSessions, savedG
                 { value: 'random', label: 'Random' },
               ]}
             />
+            <RulesSettings settings={prefs.settings} onChange={setSetting} />
           </>
         )}
-        <Segmented
-          label="Most moves a number card can give"
-          value={prefs.settings.moveCap}
-          onChange={(v) => setSetting('moveCap', v)}
-          options={MOVE_CAP_OPTIONS.map((n) => ({ value: n, label: n === 9 ? 'No cap' : String(n) }))}
-        />
-        <label class="check">
-          <input type="checkbox" checked={prefs.settings.allowEarlyEnd} onChange={(e) => setSetting('allowEarlyEnd', e.currentTarget.checked)} />
-          <span>Allow ending a turn before using every move</span>
-        </label>
         <div class="setup__actions">
           <button type="submit" class="btn btn--primary btn--big">
-            {online ? 'Create game' : 'Deal'}
+            {submitLabel[mode]}
           </button>
           <button type="button" class="btn btn--quiet" onClick={() => setShowRules(true)}>
             How to play
           </button>
         </div>
       </form>
-      {onlineAvailable && <JoinByCode onJoin={onJoinCode} />}
       <footer class="credits">
         Inspired by{' '}
         <a href="https://old.reddit.com/r/AnarchyChess/comments/1wsbpwa/sorry_im_new_to_chess_is_this_legal/" target="_blank" rel="noreferrer">

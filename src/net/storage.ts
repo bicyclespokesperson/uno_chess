@@ -10,7 +10,6 @@ export interface Prefs {
   names: Record<PlayerId, string>;
   settings: Settings;
   whiteChoice: PlayerId | 'random';
-  mode?: 'local' | 'online';
   onlineName?: string;
   onlineWhite?: WhiteChoice;
 }

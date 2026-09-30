@@ -28,7 +28,6 @@ const host = await player('host', { width: 1300, height: 860 });
 const guest = await player('guest', { width: 390, height: 844 });
 
 await host.page.goto(BASE);
-await host.page.getByLabel('Online, with a link').check({ force: true });
 await host.page.getByLabel('Your name').fill('Ana');
 await host.page.getByRole('button', { name: 'Create game' }).click();
 const link = await host.page.locator('#invite-link').inputValue();
